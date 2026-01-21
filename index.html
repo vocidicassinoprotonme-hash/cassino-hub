@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Cassino Hub</title>
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="stylesheet" href="./styles.css" />
+  <link rel="preconnect" href="https://unpkg.com" />
+
+  <!-- Leaflet (mappa) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <div class="logo">CH</div>
+      <div>
+        <h1>Cassino Hub</h1>
+        <p>Segnalazioni • Recensioni • Posti da visitare</p>
+      </div>
+    </div>
+
+    <nav class="tabs">
+      <button class="tab active" data-view="report">Segnalazioni</button>
+      <button class="tab" data-view="reviews">Recensioni</button>
+      <button class="tab" data-view="places">Posti da visitare</button>
+      <button class="tab" data-view="map">Mappa</button>
+      <button class="tab adminOnly hidden" data-view="admin">Admin</button>
+    </nav>
+  </header>
+
+  <main class="container">
+    <!-- SEGNAZIONI -->
+    <section id="view-report" class="view">
+      <h2>Invia una segnalazione</h2>
+
+      <div class="card">
+        <label class="field">
+          <span>Titolo</span>
+          <input id="rTitle" type="text" placeholder="Es. Buche su Via..." maxlength="80" />
+        </label>
+
+        <label class="field">
+          <span>Descrizione</span>
+          <textarea id="rDesc" rows="5" placeholder="Spiega cosa succede, quando, dettagli utili..."></textarea>
+        </label>
+
+        <div class="grid2">
+          <label class="field">
+            <span>Foto (opzionale)</span>
+            <input id="rPhoto" type="file" accept="image/*" capture="environment" />
+          </label>
+
+          <div class="field">
+            <span>Posizione</span>
+            <div class="row">
+              <button id="btnGeo" class="btn">Rileva GPS</button>
+              <span id="geoStatus" class="muted">Non rilevata</span>
+            </div>
+            <div class="row">
+              <input id="rLat" type="text" placeholder="Lat" readonly />
+              <input id="rLng" type="text" placeholder="Lng" readonly />
+            </div>
+          </div>
+        </div>
+
+        <div class="row">
+          <button id="btnSaveLocal" class="btn secondary">Salva sul telefono</button>
+          <button id="btnSend" class="btn">Invia</button>
+        </div>
+
+        <p class="muted small">
+          Nota: se non abiliti l’invio a un endpoint, “Invia” sarà disattivato.
+        </p>
+      </div>
+
+      <h3>Le mie segnalazioni (salvate qui)</h3>
+      <div class="row">
+        <button id="btnExport" class="btn secondary">Esporta JSON</button>
+        <button id="btnClear" class="btn danger">Svuota elenco</button>
+      </div>
+      <div id="reportList" class="list"></div>
+    </section>
+
+    <!-- RECENSIONI -->
+    <section id="view-reviews" class="view hidden">
+      <div class="row space">
+        <h2>Recensioni</h2>
+        <button id="btnAddReview" class="btn secondary">+ Aggiungi</button>
+      </div>
+      <div id="reviewsList" class="list"></div>
+    </section>
+
+    <!-- POSTI -->
+    <section id="view-places" class="view hidden">
+      <div class="row space">
+        <h2>Posti da visitare</h2>
+        <button id="btnAddPlace" class="btn secondary">+ Aggiungi</button>
+      </div>
+      <div id="placesList" class="list"></div>
+    </section>
+
+    <!-- MAPPA -->
+    <section id="view-map" class="view hidden">
+      <h2>Mappa</h2>
+      <div class="card">
+        <div id="map" class="map"></div>
+        <p class="muted small">Mostra: posti, recensioni, segnalazioni locali (se hanno coordinate).</p>
+      </div>
+    </section>
+
+    <!-- ADMIN -->
+    <section id="view-admin" class="view hidden">
+      <h2>Modalità Admin</h2>
+      <div class="card">
+        <p class="muted">
+          Come nella tua Smart Home Finds: il token resta solo nel browser (localStorage).
+          Serve per aggiornare i file JSON in /data (places.json e reviews.json).
+        </p>
+
+        <label class="field">
+          <span>GitHub Token (Contents: Read/Write)</span>
+          <input id="ghToken" type="password" placeholder="ghp_..." />
+        </label>
+
+        <div class="row">
+          <button id="btnSaveToken" class="btn">Salva Token</button>
+          <button id="btnRemoveToken" class="btn danger">Rimuovi</button>
+        </div>
+
+        <hr>
+
+        <label class="field">
+          <span>Repo (owner/repo)</span>
+          <input id="ghRepo" type="text" placeholder="sagearthstudio/cassino-hub" />
+        </label>
+
+        <div class="row">
+          <button id="btnPushData" class="btn">Pubblica /data su GitHub</button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="./app.js"></script>
+  <script>
+    if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js");
+  </script>
+</body>
+</html>
