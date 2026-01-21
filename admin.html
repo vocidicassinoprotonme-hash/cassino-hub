@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Admin Segnalazioni</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    .wrap{max-width:1100px;margin:0 auto;padding:18px}
+    .top{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    @media (max-width:900px){ .row{grid-template-columns:1fr} }
+    #mapAdmin{height:420px;border-radius:16px;border:1px solid var(--line)}
+    .item{padding:12px;border-radius:16px;border:1px solid var(--line);background:var(--card);margin:10px 0}
+    .badges{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+    .badge{font-size:12px;padding:4px 10px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.04)}
+    .grid{display:grid;grid-template-columns:1fr 160px;gap:12px;align-items:start}
+    @media (max-width:700px){ .grid{grid-template-columns:1fr} }
+    img.thumb{width:100%;border-radius:14px;border:1px solid var(--line)}
+    input,select{width:100%}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <h2>🔒 Admin Segnalazioni</h2>
+      <div style="display:flex;gap:10px;align-items:center">
+        <button id="btnReload" class="btn">🔄 Aggiorna</button>
+        <button id="btnDownload" class="btn">⬇️ Esporta JSON</button>
+        <button id="btnLogout" class="btn">🚪 Esci</button>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="card">
+        <label class="muted small">Endpoint /list del Worker</label>
+        <input id="endpoint" />
+        <div style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div>
+            <label class="muted small">Filtro testo</label>
+            <input id="q" placeholder="cerca titolo o descrizione" />
+          </div>
+          <div>
+            <label class="muted small">Mostra</label>
+            <select id="limit">
+              <option value="20">20</option>
+              <option value="50" selected>50</option>
+              <option value="100">100</option>
+            </select>
+          </div>
+        </div>
+        <div class="muted small" id="status" style="margin-top:10px"></div>
+      </div>
+
+      <div class="card">
+        <div id="mapAdmin"></div>
+      </div>
+    </div>
+
+    <div id="list"></div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="admin.js"></script>
+</body>
+</html>
