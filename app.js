@@ -4,8 +4,8 @@ const STATE = {
   reports: loadJSON("ch_reports", []),
   reviews: [],
   places: [],
-  geo: null,
-  endpoint: "", // <-- QUI metterai l’URL se usi opzione (2)
+  geo: null, // {lat,lng,acc}
+  endpoint: "https://cassino-segnalazioni.vocidicassinoproton-me.workers.dev/submit",
   map: null,
   markers: []
 };
@@ -32,11 +32,11 @@ $("btnGeo").addEventListener("click", ()=>{
   $("geoStatus").textContent = "Rilevo...";
   navigator.geolocation.getCurrentPosition(
     (pos)=>{
-      const {latitude, longitude} = pos.coords;
-      STATE.geo = { lat: latitude, lng: longitude, acc: pos.coords.accuracy };
+      const {latitude, longitude, accuracy} = pos.coords;
+      STATE.geo = { lat: latitude, lng: longitude, acc: accuracy };
       $("rLat").value = latitude.toFixed(6);
       $("rLng").value = longitude.toFixed(6);
-      $("geoStatus").textContent = `OK ±${Math.round(pos.coords.accuracy)}m`;
+      $("geoStatus").textContent = `OK ±${Math.round(accuracy)}m`;
     },
     (err)=>{
       $("geoStatus").textContent = "Non disponibile";
@@ -46,9 +46,9 @@ $("btnGeo").addEventListener("click", ()=>{
   );
 });
 
-// REPORT: salva locale
+// REPORT: salva locale (solo testo + coordinate, e mini preview base64 opzionale)
 $("btnSaveLocal").addEventListener("click", async ()=>{
-  const item = await buildReportItem();
+  const item = await buildReportItemForLocal();
   if(!item) return;
   STATE.reports.unshift(item);
   saveJSON("ch_reports", STATE.reports);
@@ -57,32 +57,72 @@ $("btnSaveLocal").addEventListener("click", async ()=>{
   alert("Salvata sul telefono ✅");
 });
 
-// REPORT: invia
+// REPORT: invia al Worker (FormData + file)
 $("btnSend").addEventListener("click", async ()=>{
   if(!STATE.endpoint){
-    alert("Invio non configurato: serve un endpoint (Cloudflare/Netlify/Formspree).");
+    alert("Invio non configurato.");
     return;
   }
-  const item = await buildReportItem();
-  if(!item) return;
 
-  const res = await fetch(STATE.endpoint, {
-    method:"POST",
-    headers: {"Content-Type":"application/json"},
-    body: JSON.stringify(item)
-  });
+  const title = $("rTitle").value.trim();
+  const desc  = $("rDesc").value.trim();
+  if(!title || !desc){
+    alert("Inserisci almeno Titolo e Descrizione.");
+    return;
+  }
 
-  if(res.ok){
-    alert("Inviata ✅");
-  } else {
-    alert("Errore invio. Salvo in locale.");
-    STATE.reports.unshift(item);
-    saveJSON("ch_reports", STATE.reports);
-    renderReports();
+  const lat = $("rLat").value ? $("rLat").value : "";
+  const lng = $("rLng").value ? $("rLng").value : "";
+  const acc = STATE.geo?.acc ? String(Math.round(STATE.geo.acc)) : "";
+
+  const fd = new FormData();
+  fd.append("title", title);
+  fd.append("desc", desc);
+  fd.append("lat", lat);
+  fd.append("lng", lng);
+  fd.append("acc", acc);
+
+  const file = $("rPhoto").files?.[0];
+  if(file) fd.append("photo", file, file.name);
+
+  // UX: disabilita bottone durante invio
+  $("btnSend").disabled = true;
+  $("btnSend").textContent = "Invio...";
+
+  try{
+    const res = await fetch(STATE.endpoint, { method:"POST", body: fd });
+    const data = await res.json().catch(()=>null);
+
+    if(res.ok && data?.ok){
+      alert("Inviata ✅");
+      clearReportForm();
+    } else {
+      console.log("Errore invio:", res.status, data);
+      alert("Errore invio ❌ (controlla Worker/R2/D1). Salvo in locale.");
+      const localItem = await buildReportItemForLocal();
+      if(localItem){
+        STATE.reports.unshift(localItem);
+        saveJSON("ch_reports", STATE.reports);
+        renderReports();
+      }
+    }
+  } catch(e){
+    console.warn(e);
+    alert("Errore rete ❌. Salvo in locale.");
+    const localItem = await buildReportItemForLocal();
+    if(localItem){
+      STATE.reports.unshift(localItem);
+      saveJSON("ch_reports", STATE.reports);
+      renderReports();
+    }
+  } finally {
+    $("btnSend").disabled = false;
+    $("btnSend").textContent = "Invia";
   }
 });
 
-async function buildReportItem(){
+// ====== LOCAL ITEM (per lista locale) ======
+async function buildReportItemForLocal(){
   const title = $("rTitle").value.trim();
   const desc  = $("rDesc").value.trim();
   if(!title || !desc){
@@ -92,19 +132,22 @@ async function buildReportItem(){
 
   const lat = $("rLat").value ? Number($("rLat").value) : null;
   const lng = $("rLng").value ? Number($("rLng").value) : null;
+  const acc = STATE.geo?.acc ? Math.round(STATE.geo.acc) : null;
 
-  let photoDataUrl = null;
+  // (opzionale) preview base64 per vedere la foto nella lista locale
+  let photoPreview = null;
   const file = $("rPhoto").files?.[0];
   if(file){
-    photoDataUrl = await fileToDataURL(file); // base64 (ok per MVP; per produzione meglio upload file)
+    photoPreview = await fileToDataURL(file);
   }
 
   return {
     id: crypto.randomUUID(),
     createdAt: new Date().toISOString(),
-    title, desc,
-    location: (lat && lng) ? { lat, lng } : null,
-    photoDataUrl
+    title,
+    desc,
+    location: (lat !== null && lng !== null) ? { lat, lng, acc } : null,
+    photoPreview // SOLO preview locale
   };
 }
 
@@ -157,12 +200,12 @@ function renderReports(){
       <div class="badges">
         <span class="badge">${new Date(r.createdAt).toLocaleString("it-IT")}</span>
         ${r.location ? `<span class="badge">GPS</span>` : `<span class="badge">No GPS</span>`}
-        ${r.photoDataUrl ? `<span class="badge">Foto</span>` : ``}
+        ${r.photoPreview ? `<span class="badge">Foto</span>` : ``}
       </div>
       <h4>${escapeHTML(r.title)}</h4>
       <p class="muted">${escapeHTML(r.desc)}</p>
-      ${r.photoDataUrl ? `<img src="${r.photoDataUrl}" alt="" style="width:100%;border-radius:14px;border:1px solid var(--line);margin-top:8px">` : ``}
-      ${r.location ? `<p class="muted small">Lat ${r.location.lat.toFixed(6)} • Lng ${r.location.lng.toFixed(6)}</p>` : ``}
+      ${r.photoPreview ? `<img src="${r.photoPreview}" alt="" style="width:100%;border-radius:14px;border:1px solid var(--line);margin-top:8px">` : ``}
+      ${r.location ? `<p class="muted small">Lat ${r.location.lat.toFixed(6)} • Lng ${r.location.lng.toFixed(6)}${r.location.acc ? ` • ±${r.location.acc}m` : ""}</p>` : ``}
     `;
     root.appendChild(el);
   }
@@ -178,15 +221,12 @@ function renderMap(){
     STATE.map = L.map("map");
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(STATE.map);
   }
-  // pulizia marker
   STATE.markers.forEach(m=> m.remove());
   STATE.markers = [];
 
-  // centro: Cassino
   const center = [41.492, 13.832];
   STATE.map.setView(center, 13);
 
-  // segnalazioni locali con GPS
   for(const r of STATE.reports){
     if(!r.location) continue;
     const m = L.marker([r.location.lat, r.location.lng]).addTo(STATE.map);
