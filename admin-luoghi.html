@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Admin Luoghi & Recensioni</title>
+  <style>
+    :root{
+      --bg:#0b0f1a; --card:#10182a; --line:rgba(255,255,255,.08);
+      --txt:#eaf0ff; --muted:rgba(234,240,255,.72);
+      --accent:#7c5cff; --ok:#27d17f; --bad:#ff4d4d;
+      --shadow:0 12px 40px rgba(0,0,0,.35);
+      --radius:16px;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;
+      background:radial-gradient(900px 500px at 20% 10%, rgba(124,92,255,.20), transparent 60%),
+                 radial-gradient(900px 500px at 80% 20%, rgba(39,209,127,.14), transparent 60%),
+                 var(--bg);
+      color:var(--txt);
+    }
+    header{
+      display:flex; align-items:center; gap:10px;
+      padding:16px 18px; border-bottom:1px solid var(--line);
+      background:rgba(16,24,42,.7); backdrop-filter: blur(10px);
+      position:sticky; top:0; z-index:10;
+    }
+    header h1{font-size:16px; margin:0}
+    header .pill{
+      margin-left:auto;
+      padding:7px 10px; border:1px solid var(--line);
+      border-radius:999px; background:rgba(255,255,255,.03);
+      font-size:12px; color:var(--muted);
+    }
+    main{
+      padding:16px;
+      max-width:1100px;
+      margin:0 auto;
+      display:grid;
+      gap:14px;
+      grid-template-columns: 1fr;
+    }
+    @media(min-width: 920px){
+      main{ grid-template-columns: 380px 1fr; }
+    }
+    .card{
+      background:rgba(16,24,42,.85);
+      border:1px solid var(--line);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      overflow:hidden;
+    }
+    .card h2{
+      font-size:14px; margin:0;
+      padding:12px 14px;
+      border-bottom:1px solid var(--line);
+      background:rgba(255,255,255,.02);
+    }
+    .card .content{ padding:14px; }
+    label{ display:block; font-size:12px; color:var(--muted); margin:10px 0 6px; }
+    input, textarea, select{
+      width:100%;
+      padding:10px 11px;
+      border-radius:12px;
+      border:1px solid var(--line);
+      background:rgba(0,0,0,.18);
+      color:var(--txt);
+      outline:none;
+    }
+    textarea{ min-height: 92px; resize: vertical; }
+    .row{ display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
+    .row3{ display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px; }
+    .btns{ display:flex; gap:10px; flex-wrap:wrap; margin-top:12px; }
+    button{
+      border:0; border-radius:12px;
+      padding:10px 12px;
+      background:rgba(255,255,255,.06);
+      color:var(--txt);
+      cursor:pointer;
+      border:1px solid var(--line);
+    }
+    button.primary{ background: linear-gradient(135deg, var(--accent), rgba(124,92,255,.55)); }
+    button.ok{ background: linear-gradient(135deg, var(--ok), rgba(39,209,127,.55)); }
+    button.danger{ background: linear-gradient(135deg, var(--bad), rgba(255,77,77,.55)); }
+    .muted{ color:var(--muted); font-size:12px; }
+    .small{ font-size:12px; }
+    .status{ margin-top:10px; font-size:12px; }
+    .status.ok{ color:var(--ok); }
+    .status.bad{ color:var(--bad); }
+    .list{
+      display:flex; flex-direction:column; gap:10px;
+      max-height: 420px;
+      overflow:auto;
+      padding-right: 4px;
+    }
+    .item{
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:10px 10px;
+      background:rgba(255,255,255,.02);
+      cursor:pointer;
+    }
+    .item.active{ outline:2px solid rgba(124,92,255,.55); }
+    .badges{ display:flex; gap:6px; flex-wrap:wrap; margin-bottom:6px; }
+    .badge{
+      font-size:11px; color:var(--muted);
+      border:1px solid var(--line);
+      padding:3px 7px; border-radius:999px;
+      background:rgba(0,0,0,.16);
+    }
+    .split{
+      display:grid;
+      grid-template-columns: 1fr;
+      gap:14px;
+    }
+    @media(min-width: 920px){
+      .split{ grid-template-columns: 1fr 1fr; }
+    }
+    .hr{ height:1px; background:var(--line); margin:12px 0; }
+  </style>
+</head>
+<body>
+<header>
+  <h1>🔐 Admin Luoghi & Recensioni</h1>
+  <div class="pill" id="pill">Non connesso</div>
+</header>
+
+<main>
+  <!-- LEFT: CONFIG + CREATE PLACE -->
+  <section class="card">
+    <h2>Configurazione</h2>
+    <div class="content">
+      <label>Worker base URL</label>
+      <input id="workerBase" placeholder="https://...workers.dev" />
+
+      <label>Admin Key (solo per te)</label>
+      <input id="adminKey" placeholder="inserisci la chiave admin" />
+
+      <div class="btns">
+        <button class="primary" id="btnSaveCfg">Salva</button>
+        <button id="btnTest">Test connessione</button>
+      </div>
+      <div class="status" id="cfgStatus"></div>
+
+      <div class="hr"></div>
+
+      <h2 style="padding:0;margin:0 0 6px 0;font-size:14px;">Nuovo / Modifica Luogo</h2>
+
+      <label>ID luogo (lascia vuoto per creare nuovo)</label>
+      <input id="pId" placeholder="(vuoto = crea nuovo)" />
+
+      <label>Categoria</label>
+      <select id="pType">
+        <option value="eat">🍽️ Dove mangiare</option>
+        <option value="shop">🛍️ Dove acquistare</option>
+        <option value="visit">📍 Posti da visitare</option>
+      </select>
+
+      <label>Nome</label>
+      <input id="pName" placeholder="Es: Pizzeria XYZ" />
+
+      <label>Descrizione</label>
+      <textarea id="pDesc" placeholder="Breve descrizione..."></textarea>
+
+      <label>Indirizzo</label>
+      <input id="pAddr" placeholder="Via..., Cassino" />
+
+      <div class="row">
+        <div>
+          <label>Lat</label>
+          <input id="pLat" inputmode="decimal" placeholder="41.49..." />
+        </div>
+        <div>
+          <label>Lng</label>
+          <input id="pLng" inputmode="decimal" placeholder="13.83..." />
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label>Telefono</label>
+          <input id="pPhone" placeholder="+39..." />
+        </div>
+        <div>
+          <label>Sito web</label>
+          <input id="pWeb" placeholder="https://..." />
+        </div>
+      </div>
+
+      <label>Tag (separati da virgola)</label>
+      <input id="pTags" placeholder="pizza, famiglia, economico" />
+
+      <div class="btns">
+        <button class="ok" id="btnSavePlace">Salva luogo</button>
+        <button id="btnClearPlace">Pulisci</button>
+      </div>
+
+      <div class="status" id="placeStatus"></div>
+      <p class="muted">Nota: i luoghi vengono salvati su D1 (tabella <b>places</b>).</p>
+    </div>
+  </section>
+
+  <!-- RIGHT: LIST PLACES + REVIEWS -->
+  <section class="card">
+    <h2>Elenco luoghi & Recensioni</h2>
+    <div class="content">
+      <div class="row">
+        <div>
+          <label>Filtra per categoria</label>
+          <select id="filterType">
+            <option value="">Tutti</option>
+            <option value="eat">🍽️ Dove mangiare</option>
+            <option value="shop">🛍️ Dove acquistare</option>
+            <option value="visit">📍 Posti da visitare</option>
+          </select>
+        </div>
+        <div>
+          <label>Cerca testo</label>
+          <input id="filterText" placeholder="cerca per nome/descrizione" />
+        </div>
+      </div>
+
+      <div class="btns">
+        <button class="primary" id="btnReload">Aggiorna lista</button>
+        <button id="btnExportPlaces">Esporta luoghi JSON</button>
+      </div>
+
+      <div class="status" id="listStatus"></div>
+
+      <div class="split" style="margin-top:12px;">
+        <div>
+          <div class="muted" style="margin-bottom:8px;">Luoghi (tocca per selezionare)</div>
+          <div class="list" id="placeList"></div>
+        </div>
+
+        <div>
+          <div class="muted" style="margin-bottom:8px;">Recensioni per il luogo selezionato</div>
+          <div class="card" style="border-radius:14px;">
+            <div class="content">
+              <div class="muted small" id="selPlaceInfo">Nessun luogo selezionato.</div>
+
+              <label>Voto (1-5)</label>
+              <select id="rRating">
+                <option value="5">⭐⭐⭐⭐⭐ (5)</option>
+                <option value="4">⭐⭐⭐⭐ (4)</option>
+                <option value="3">⭐⭐⭐ (3)</option>
+                <option value="2">⭐⭐ (2)</option>
+                <option value="1">⭐ (1)</option>
+              </select>
+
+              <label>Titolo (opzionale)</label
