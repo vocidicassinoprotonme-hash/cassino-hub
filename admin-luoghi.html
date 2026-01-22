@@ -249,4 +249,370 @@
                 <option value="1">⭐ (1)</option>
               </select>
 
-              <label>Titolo (opzionale)</label
+              <label>Titolo (opzionale)</label>
+              <input id="rTitle" placeholder="Es: Ottimo!" />
+
+              <label>Testo recensione (opzionale)</label>
+              <textarea id="rBody" placeholder="Scrivi la recensione..."></textarea>
+
+              <label>Autore (opzionale)</label>
+              <input id="rAuthor" placeholder="Nome o anonimo" />
+
+              <div class="btns">
+                <button class="ok" id="btnAddReview">Aggiungi recensione</button>
+                <button id="btnLoadReviews">Carica recensioni</button>
+              </div>
+
+              <div class="status" id="reviewStatus"></div>
+
+              <div class="hr"></div>
+              <div class="muted small" id="reviewSummary"></div>
+              <div class="list" id="reviewList" style="max-height:220px;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <p class="muted" style="margin-top:12px;">
+        Endpoint usati: <b>/places</b>, <b>/reviews</b>, <b>/admin/place</b>, <b>/admin/review</b>
+      </p>
+    </div>
+  </section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+const STATE = {
+  base: "",
+  key: "",
+  places: [],
+  selectedPlace: null
+};
+
+function saveCfg(){
+  localStorage.setItem("ch_admin_base", STATE.base);
+  localStorage.setItem("ch_admin_key", STATE.key);
+}
+function loadCfg(){
+  STATE.base = localStorage.getItem("ch_admin_base") || "https://cassino-segnalazioni.vocidicassinoproton-me.workers.dev";
+  STATE.key  = localStorage.getItem("ch_admin_key") || "";
+  $("workerBase").value = STATE.base;
+  $("adminKey").value = STATE.key;
+  updatePill();
+}
+function updatePill(){
+  $("pill").textContent = STATE.base ? "Connesso: " + new URL(STATE.base).host : "Non connesso";
+}
+
+function api(path){
+  return STATE.base.replace(/\/+$/,"") + path;
+}
+
+function setStatus(el, msg, ok){
+  el.textContent = msg || "";
+  el.className = "status " + (ok ? "ok" : "bad");
+}
+
+async function testConn(){
+  try{
+    const res = await fetch(api("/places"));
+    const j = await res.json();
+    if(res.ok && j.ok){
+      setStatus($("cfgStatus"), "OK: Worker raggiungibile ✅", true);
+      return true;
+    }
+    setStatus($("cfgStatus"), "Risposta non valida ❌", false);
+    return false;
+  }catch(e){
+    setStatus($("cfgStatus"), "Errore rete / Worker non raggiungibile ❌", false);
+    return false;
+  }
+}
+
+async function loadPlaces(){
+  setStatus($("listStatus"), "Carico luoghi...", true);
+  const type = $("filterType").value.trim();
+  const q = $("filterText").value.trim().toLowerCase();
+
+  const url = type ? api("/places?type=" + encodeURIComponent(type)) : api("/places");
+  const res = await fetch(url);
+  const j = await res.json();
+
+  if(!res.ok || !j.ok){
+    setStatus($("listStatus"), "Errore caricamento luoghi ❌", false);
+    return;
+  }
+
+  let rows = j.rows || [];
+  if(q){
+    rows = rows.filter(p =>
+      (p.name||"").toLowerCase().includes(q) ||
+      (p.description||"").toLowerCase().includes(q) ||
+      (p.address||"").toLowerCase().includes(q)
+    );
+  }
+
+  STATE.places = rows;
+  renderPlaces();
+  setStatus($("listStatus"), `OK: ${rows.length} luoghi caricati ✅`, true);
+}
+
+function renderPlaces(){
+  const root = $("placeList");
+  root.innerHTML = "";
+  if(STATE.places.length === 0){
+    root.innerHTML = `<div class="muted small">Nessun luogo. Aggiungine uno a sinistra.</div>`;
+    return;
+  }
+
+  for(const p of STATE.places){
+    const el = document.createElement("div");
+    el.className = "item" + (STATE.selectedPlace?.id === p.id ? " active" : "");
+    const typeLabel = p.type === "eat" ? "🍽️" : p.type === "shop" ? "🛍️" : "📍";
+    el.innerHTML = `
+      <div class="badges">
+        <span class="badge">${typeLabel} ${p.type}</span>
+        ${p.lat && p.lng ? `<span class="badge">GPS</span>` : `<span class="badge">No GPS</span>`}
+      </div>
+      <b>${escapeHTML(p.name||"")}</b>
+      <div class="muted small">${escapeHTML(p.address||"")}</div>
+      <div class="muted small">${escapeHTML((p.description||"").slice(0,90))}${(p.description||"").length>90?"…":""}</div>
+      <div class="muted small">ID: ${escapeHTML(p.id)}</div>
+    `;
+    el.addEventListener("click", ()=>{
+      STATE.selectedPlace = p;
+      $("selPlaceInfo").textContent = `Selezionato: ${p.name} (ID: ${p.id})`;
+      renderPlaces();
+      loadReviews();
+      // copia dati nel form a sinistra per modificare
+      fillPlaceForm(p);
+    });
+    root.appendChild(el);
+  }
+}
+
+function fillPlaceForm(p){
+  $("pId").value = p.id || "";
+  $("pType").value = p.type || "eat";
+  $("pName").value = p.name || "";
+  $("pDesc").value = p.description || "";
+  $("pAddr").value = p.address || "";
+  $("pLat").value = (p.lat ?? "") === null ? "" : (p.lat ?? "");
+  $("pLng").value = (p.lng ?? "") === null ? "" : (p.lng ?? "");
+  $("pPhone").value = p.phone || "";
+  $("pWeb").value = p.website || "";
+  $("pTags").value = Array.isArray(p.tags) ? p.tags.join(", ") : "";
+}
+
+function clearPlaceForm(){
+  $("pId").value = "";
+  $("pType").value = "eat";
+  $("pName").value = "";
+  $("pDesc").value = "";
+  $("pAddr").value = "";
+  $("pLat").value = "";
+  $("pLng").value = "";
+  $("pPhone").value = "";
+  $("pWeb").value = "";
+  $("pTags").value = "";
+}
+
+async function savePlace(){
+  const payload = {
+    id: $("pId").value.trim() || undefined,
+    type: $("pType").value.trim(),
+    name: $("pName").value.trim(),
+    description: $("pDesc").value.trim() || null,
+    address: $("pAddr").value.trim() || null,
+    lat: $("pLat").value.trim() ? Number($("pLat").value.trim()) : null,
+    lng: $("pLng").value.trim() ? Number($("pLng").value.trim()) : null,
+    phone: $("pPhone").value.trim() || null,
+    website: $("pWeb").value.trim() || null,
+    tags: $("pTags").value.trim()
+      ? $("pTags").value.split(",").map(s=>s.trim()).filter(Boolean)
+      : []
+  };
+
+  if(!payload.name){
+    setStatus($("placeStatus"), "Inserisci almeno il nome ❌", false);
+    return;
+  }
+
+  try{
+    const res = await fetch(api("/admin/place"), {
+      method:"POST",
+      headers:{
+        "Content-Type":"application/json",
+        "X-Admin-Key": STATE.key
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const j = await res.json().catch(()=> ({}));
+    if(res.ok && j.ok){
+      setStatus($("placeStatus"), "Luogo salvato ✅", true);
+      await loadPlaces();
+      // seleziona se appena creato
+      if(j.id){
+        const found = STATE.places.find(x=>x.id===j.id);
+        if(found){
+          STATE.selectedPlace = found;
+          $("selPlaceInfo").textContent = `Selezionato: ${found.name} (ID: ${found.id})`;
+          renderPlaces();
+        }
+      }
+    }else{
+      setStatus($("placeStatus"), "Errore salvataggio ❌ " + (j.error||""), false);
+    }
+  }catch(e){
+    setStatus($("placeStatus"), "Errore rete ❌", false);
+  }
+}
+
+async function loadReviews(){
+  if(!STATE.selectedPlace){
+    $("reviewSummary").textContent = "";
+    $("reviewList").innerHTML = "";
+    return;
+  }
+  setStatus($("reviewStatus"), "Carico recensioni...", true);
+
+  try{
+    const res = await fetch(api("/reviews?placeId=" + encodeURIComponent(STATE.selectedPlace.id)));
+    const j = await res.json();
+    if(!res.ok || !j.ok){
+      setStatus($("reviewStatus"), "Errore caricamento recensioni ❌", false);
+      return;
+    }
+
+    const avg = (j.avgRating === null) ? "-" : Number(j.avgRating).toFixed(2);
+    $("reviewSummary").textContent = `Recensioni: ${j.count} • Media: ${avg}`;
+    renderReviews(j.rows || []);
+    setStatus($("reviewStatus"), "Recensioni caricate ✅", true);
+  }catch(e){
+    setStatus($("reviewStatus"), "Errore rete ❌", false);
+  }
+}
+
+function renderReviews(rows){
+  const root = $("reviewList");
+  root.innerHTML = "";
+  if(rows.length === 0){
+    root.innerHTML = `<div class="muted small">Nessuna recensione per questo luogo.</div>`;
+    return;
+  }
+  for(const r of rows){
+    const el = document.createElement("div");
+    el.className = "item";
+    const stars = "⭐".repeat(Number(r.rating||0));
+    el.innerHTML = `
+      <div class="badges">
+        <span class="badge">${stars} (${r.rating})</span>
+        <span class="badge">${new Date(r.createdAt).toLocaleString("it-IT")}</span>
+        ${r.author ? `<span class="badge">${escapeHTML(r.author)}</span>` : ``}
+      </div>
+      ${r.title ? `<b>${escapeHTML(r.title)}</b>` : `<b>Recensione</b>`}
+      ${r.body ? `<div class="muted small">${escapeHTML(r.body)}</div>` : ``}
+    `;
+    root.appendChild(el);
+  }
+}
+
+async function addReview(){
+  if(!STATE.selectedPlace){
+    setStatus($("reviewStatus"), "Seleziona prima un luogo ❌", false);
+    return;
+  }
+
+  const payload = {
+    placeId: STATE.selectedPlace.id,
+    rating: Number($("rRating").value),
+    title: $("rTitle").value.trim() || null,
+    body: $("rBody").value.trim() || null,
+    author: $("rAuthor").value.trim() || null
+  };
+
+  try{
+    const res = await fetch(api("/admin/review"), {
+      method:"POST",
+      headers:{
+        "Content-Type":"application/json",
+        "X-Admin-Key": STATE.key
+      },
+      body: JSON.stringify(payload)
+    });
+    const j = await res.json().catch(()=> ({}));
+    if(res.ok && j.ok){
+      setStatus($("reviewStatus"), "Recensione aggiunta ✅", true);
+      $("rTitle").value = "";
+      $("rBody").value = "";
+      $("rAuthor").value = "";
+      await loadReviews();
+    }else{
+      setStatus($("reviewStatus"), "Errore ❌ " + (j.error||""), false);
+    }
+  }catch(e){
+    setStatus($("reviewStatus"), "Errore rete ❌", false);
+  }
+}
+
+function exportPlaces(){
+  const blob = new Blob([JSON.stringify(STATE.places, null, 2)], {type:"application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "places.json";
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function escapeHTML(s){
+  return String(s).replace(/[&<>"']/g, m => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'
+  }[m]));
+}
+
+// =====================
+// EVENTS
+// =====================
+$("btnSaveCfg").addEventListener("click", ()=>{
+  STATE.base = $("workerBase").value.trim();
+  STATE.key  = $("adminKey").value.trim();
+  saveCfg();
+  updatePill();
+  setStatus($("cfgStatus"), "Salvato ✅", true);
+});
+
+$("btnTest").addEventListener("click", async ()=>{
+  STATE.base = $("workerBase").value.trim();
+  STATE.key  = $("adminKey").value.trim();
+  saveCfg();
+  updatePill();
+  await testConn();
+});
+
+$("btnReload").addEventListener("click", loadPlaces);
+$("filterType").addEventListener("change", loadPlaces);
+$("filterText").addEventListener("input", ()=> {
+  // micro debounce
+  clearTimeout(window.__t);
+  window.__t = setTimeout(loadPlaces, 250);
+});
+
+$("btnSavePlace").addEventListener("click", savePlace);
+$("btnClearPlace").addEventListener("click", ()=>{
+  clearPlaceForm();
+  setStatus($("placeStatus"), "", true);
+});
+
+$("btnAddReview").addEventListener("click", addReview);
+$("btnLoadReviews").addEventListener("click", loadReviews);
+
+$("btnExportPlaces").addEventListener("click", exportPlaces);
+
+// INIT
+loadCfg();
+testConn().then(loadPlaces);
+</script>
+</body>
+</html>
