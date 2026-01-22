@@ -1,5 +1,8 @@
 const $ = (id) => document.getElementById(id);
 
+// =====================
+// STATE
+// =====================
 const STATE = {
   reports: loadJSON("ch_reports", []),
   reviews: [],
@@ -7,15 +10,29 @@ const STATE = {
   geo: null, // {lat,lng,acc}
   endpoint: "https://cassino-segnalazioni.vocidicassinoproton-me.workers.dev/submit",
   map: null,
-  markers: []
+  markers: [],
+
+  // map picker
+  pickMap: null,
+  pickMarker: null,
+  pickedLatLng: null
 };
 
+// Foto selezionata (galleria o camera)
+let SELECTED_PHOTO_FILE = null;
+
+// =====================
+// Storage
+// =====================
 function loadJSON(key, fallback){
   try { return JSON.parse(localStorage.getItem(key)) ?? fallback; }
   catch { return fallback; }
 }
 function saveJSON(key, value){ localStorage.setItem(key, JSON.stringify(value)); }
 
+// =====================
+// Navigation
+// =====================
 function switchView(view){
   document.querySelectorAll(".tab").forEach(b => b.classList.toggle("active", b.dataset.view === view));
   document.querySelectorAll(".view").forEach(v => v.classList.add("hidden"));
@@ -27,7 +44,49 @@ document.querySelectorAll(".tab").forEach(btn=>{
   btn.addEventListener("click", ()=> switchView(btn.dataset.view));
 });
 
-// GEO
+// =====================
+// PHOTO (Gallery + Camera)
+// Requires in HTML:
+// btnPickGallery, btnPickCamera, rPhotoGallery, rPhotoCamera,
+// photoPreviewWrap, photoName, photoPreview
+// =====================
+if ($("btnPickGallery") && $("btnPickCamera")) {
+  $("btnPickGallery").addEventListener("click", ()=> $("rPhotoGallery").click());
+  $("btnPickCamera").addEventListener("click", ()=> $("rPhotoCamera").click());
+
+  $("rPhotoGallery").addEventListener("change", onPhotoChosen);
+  $("rPhotoCamera").addEventListener("change", onPhotoChosen);
+}
+
+function onPhotoChosen(e){
+  const file = e.target.files?.[0];
+  if(!file) return;
+
+  SELECTED_PHOTO_FILE = file;
+
+  // reset other input to avoid confusion
+  if(e.target.id === "rPhotoGallery" && $("rPhotoCamera")) $("rPhotoCamera").value = "";
+  if(e.target.id === "rPhotoCamera" && $("rPhotoGallery")) $("rPhotoGallery").value = "";
+
+  if ($("photoPreviewWrap")) {
+    $("photoPreviewWrap").classList.remove("hidden");
+    $("photoName").textContent = `${file.name} • ${(file.size/1024).toFixed(0)} KB`;
+    $("photoPreview").src = URL.createObjectURL(file);
+  }
+}
+
+function clearPhotoSelection(){
+  SELECTED_PHOTO_FILE = null;
+  if($("rPhotoGallery")) $("rPhotoGallery").value = "";
+  if($("rPhotoCamera")) $("rPhotoCamera").value = "";
+  if($("photoPreviewWrap")) $("photoPreviewWrap").classList.add("hidden");
+  if($("photoName")) $("photoName").textContent = "";
+  if($("photoPreview")) $("photoPreview").src = "";
+}
+
+// =====================
+// GEO (GPS)
+// =====================
 $("btnGeo").addEventListener("click", ()=>{
   $("geoStatus").textContent = "Rilevo...";
   navigator.geolocation.getCurrentPosition(
@@ -46,7 +105,90 @@ $("btnGeo").addEventListener("click", ()=>{
   );
 });
 
-// REPORT: salva locale (solo testo + coordinate, e mini preview base64 opzionale)
+// =====================
+// MAP PICKER (select point on map)
+// Requires in HTML:
+// btnPickOnMap, mapPickModal, mapPick, btnPickCancel, btnPickUse, pickHint
+// =====================
+if ($("btnPickOnMap")) {
+  $("btnPickOnMap").addEventListener("click", openPickMap);
+}
+if ($("btnPickCancel")) {
+  $("btnPickCancel").addEventListener("click", closePickMap);
+}
+if ($("btnPickUse")) {
+  $("btnPickUse").addEventListener("click", usePickedPoint);
+}
+
+function openPickMap(){
+  if(!$("mapPickModal") || !$("mapPick")) {
+    alert("Mappa selezione non trovata (mapPickModal/mapPick).");
+    return;
+  }
+
+  $("mapPickModal").classList.remove("hidden");
+
+  // create once
+  if(!STATE.pickMap){
+    STATE.pickMap = L.map("mapPick");
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(STATE.pickMap);
+
+    STATE.pickMap.on("click", (e)=>{
+      STATE.pickedLatLng = e.latlng;
+
+      if(!STATE.pickMarker) STATE.pickMarker = L.marker(e.latlng).addTo(STATE.pickMap);
+      else STATE.pickMarker.setLatLng(e.latlng);
+
+      if($("pickHint")) {
+        $("pickHint").textContent = `Scelto: ${e.latlng.lat.toFixed(6)}, ${e.latlng.lng.toFixed(6)}`;
+      }
+    });
+  }
+
+  // center on current values or Cassino
+  const lat = $("rLat").value ? Number($("rLat").value) : 41.492;
+  const lng = $("rLng").value ? Number($("rLng").value) : 13.832;
+  STATE.pickMap.setView([lat, lng], 13);
+
+  // if already picked, show marker
+  if(STATE.pickedLatLng){
+    if(!STATE.pickMarker) STATE.pickMarker = L.marker(STATE.pickedLatLng).addTo(STATE.pickMap);
+    else STATE.pickMarker.setLatLng(STATE.pickedLatLng);
+    if($("pickHint")) $("pickHint").textContent = `Scelto: ${STATE.pickedLatLng.lat.toFixed(6)}, ${STATE.pickedLatLng.lng.toFixed(6)}`;
+  } else {
+    if($("pickHint")) $("pickHint").textContent = "Tocca la mappa per scegliere";
+  }
+
+  // force resize (modal)
+  setTimeout(()=> STATE.pickMap.invalidateSize(), 150);
+}
+
+function closePickMap(){
+  if($("mapPickModal")) $("mapPickModal").classList.add("hidden");
+}
+
+function usePickedPoint(){
+  if(!STATE.pickedLatLng){
+    alert("Tocca un punto sulla mappa prima di confermare.");
+    return;
+  }
+  $("rLat").value = STATE.pickedLatLng.lat.toFixed(6);
+  $("rLng").value = STATE.pickedLatLng.lng.toFixed(6);
+  $("geoStatus").textContent = "Selezionata da mappa ✅";
+  STATE.geo = { lat: STATE.pickedLatLng.lat, lng: STATE.pickedLatLng.lng, acc: null };
+  closePickMap();
+}
+
+// close modal if user taps backdrop (optional)
+document.addEventListener("click", (e)=>{
+  if(e.target && e.target.id === "mapPickModal"){
+    closePickMap();
+  }
+});
+
+// =====================
+// REPORT: save local
+// =====================
 $("btnSaveLocal").addEventListener("click", async ()=>{
   const item = await buildReportItemForLocal();
   if(!item) return;
@@ -57,7 +199,9 @@ $("btnSaveLocal").addEventListener("click", async ()=>{
   alert("Salvata sul telefono ✅");
 });
 
-// REPORT: invia al Worker (FormData + file)
+// =====================
+// REPORT: send to Worker (FormData + file)
+// =====================
 $("btnSend").addEventListener("click", async ()=>{
   if(!STATE.endpoint){
     alert("Invio non configurato.");
@@ -82,10 +226,9 @@ $("btnSend").addEventListener("click", async ()=>{
   fd.append("lng", lng);
   fd.append("acc", acc);
 
-  const file = $("rPhoto").files?.[0];
+  const file = SELECTED_PHOTO_FILE;
   if(file) fd.append("photo", file, file.name);
 
-  // UX: disabilita bottone durante invio
   $("btnSend").disabled = true;
   $("btnSend").textContent = "Invio...";
 
@@ -121,7 +264,9 @@ $("btnSend").addEventListener("click", async ()=>{
   }
 });
 
-// ====== LOCAL ITEM (per lista locale) ======
+// =====================
+// LOCAL ITEM (for local list)
+// =====================
 async function buildReportItemForLocal(){
   const title = $("rTitle").value.trim();
   const desc  = $("rDesc").value.trim();
@@ -134,9 +279,8 @@ async function buildReportItemForLocal(){
   const lng = $("rLng").value ? Number($("rLng").value) : null;
   const acc = STATE.geo?.acc ? Math.round(STATE.geo.acc) : null;
 
-  // (opzionale) preview base64 per vedere la foto nella lista locale
   let photoPreview = null;
-  const file = $("rPhoto").files?.[0];
+  const file = SELECTED_PHOTO_FILE;
   if(file){
     photoPreview = await fileToDataURL(file);
   }
@@ -147,7 +291,7 @@ async function buildReportItemForLocal(){
     title,
     desc,
     location: (lat !== null && lng !== null) ? { lat, lng, acc } : null,
-    photoPreview // SOLO preview locale
+    photoPreview
   };
 }
 
@@ -163,14 +307,17 @@ function fileToDataURL(file){
 function clearReportForm(){
   $("rTitle").value = "";
   $("rDesc").value = "";
-  $("rPhoto").value = "";
   $("rLat").value = "";
   $("rLng").value = "";
   $("geoStatus").textContent = "Non rilevata";
   STATE.geo = null;
+  STATE.pickedLatLng = null;
+  clearPhotoSelection();
 }
 
-// LISTA REPORT
+// =====================
+// Export/Clear local reports
+// =====================
 $("btnExport").addEventListener("click", ()=>{
   const blob = new Blob([JSON.stringify(STATE.reports, null, 2)], {type:"application/json"});
   const a = document.createElement("a");
@@ -212,15 +359,18 @@ function renderReports(){
 }
 
 function escapeHTML(s){
-  return s.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
+  return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
 }
 
-// MAPPA
+// =====================
+// MAP (main map tab)
+// =====================
 function renderMap(){
   if(!STATE.map){
     STATE.map = L.map("map");
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(STATE.map);
   }
+
   STATE.markers.forEach(m=> m.remove());
   STATE.markers = [];
 
@@ -235,5 +385,9 @@ function renderMap(){
   }
 }
 
+// =====================
+// INIT
+// =====================
 renderReports();
 switchView("report");
+```0
