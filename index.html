@@ -47,15 +47,34 @@
         </label>
 
         <div class="grid2">
-          <label class="field">
+          <!-- FOTO: GALLERIA + CAMERA -->
+          <div class="field">
             <span>Foto (opzionale)</span>
-            <input id="rPhoto" type="file" accept="image/*" capture="environment" />
-          </label>
 
+            <div class="row">
+              <button id="btnPickGallery" class="btn secondary" type="button">📁 Galleria</button>
+              <button id="btnPickCamera" class="btn secondary" type="button">📷 Scatta</button>
+            </div>
+
+            <!-- Input reali nascosti -->
+            <input id="rPhotoGallery" type="file" accept="image/*" style="display:none" />
+            <input id="rPhotoCamera" type="file" accept="image/*" capture="environment" style="display:none" />
+
+            <!-- Preview -->
+            <div id="photoPreviewWrap" class="hidden" style="margin-top:10px">
+              <span id="photoName" class="muted small"></span>
+              <img id="photoPreview" alt="" style="width:100%;border-radius:14px;border:1px solid var(--line);margin-top:8px">
+            </div>
+          </div>
+
+          <!-- POSIZIONE: GPS + SELEZIONE SU MAPPA -->
           <div class="field">
             <span>Posizione</span>
             <div class="row">
-              <button id="btnGeo" class="btn">Rileva GPS</button>
+              <button id="btnGeo" class="btn" type="button">Rileva GPS</button>
+              <button id="btnPickOnMap" class="btn secondary" type="button">🗺️ Seleziona su mappa</button>
+            </div>
+            <div class="row">
               <span id="geoStatus" class="muted">Non rilevata</span>
             </div>
             <div class="row">
@@ -66,8 +85,8 @@
         </div>
 
         <div class="row">
-          <button id="btnSaveLocal" class="btn secondary">Salva sul telefono</button>
-          <button id="btnSend" class="btn">Invia</button>
+          <button id="btnSaveLocal" class="btn secondary" type="button">Salva sul telefono</button>
+          <button id="btnSend" class="btn" type="button">Invia</button>
         </div>
 
         <p class="muted small">
@@ -77,8 +96,8 @@
 
       <h3>Le mie segnalazioni (salvate qui)</h3>
       <div class="row">
-        <button id="btnExport" class="btn secondary">Esporta JSON</button>
-        <button id="btnClear" class="btn danger">Svuota elenco</button>
+        <button id="btnExport" class="btn secondary" type="button">Esporta JSON</button>
+        <button id="btnClear" class="btn danger" type="button">Svuota elenco</button>
       </div>
       <div id="reportList" class="list"></div>
     </section>
@@ -87,7 +106,7 @@
     <section id="view-reviews" class="view hidden">
       <div class="row space">
         <h2>Recensioni</h2>
-        <button id="btnAddReview" class="btn secondary">+ Aggiungi</button>
+        <button id="btnAddReview" class="btn secondary" type="button">+ Aggiungi</button>
       </div>
       <div id="reviewsList" class="list"></div>
     </section>
@@ -96,7 +115,7 @@
     <section id="view-places" class="view hidden">
       <div class="row space">
         <h2>Posti da visitare</h2>
-        <button id="btnAddPlace" class="btn secondary">+ Aggiungi</button>
+        <button id="btnAddPlace" class="btn secondary" type="button">+ Aggiungi</button>
       </div>
       <div id="placesList" class="list"></div>
     </section>
@@ -125,8 +144,8 @@
         </label>
 
         <div class="row">
-          <button id="btnSaveToken" class="btn">Salva Token</button>
-          <button id="btnRemoveToken" class="btn danger">Rimuovi</button>
+          <button id="btnSaveToken" class="btn" type="button">Salva Token</button>
+          <button id="btnRemoveToken" class="btn danger" type="button">Rimuovi</button>
         </div>
 
         <hr>
@@ -137,12 +156,29 @@
         </label>
 
         <div class="row">
-          <button id="btnPushData" class="btn">Pubblica /data su GitHub</button>
+          <button id="btnPushData" class="btn" type="button">Pubblica /data su GitHub</button>
         </div>
       </div>
     </section>
 
   </main>
+
+  <!-- MODAL: SELEZIONE PUNTO SU MAPPA (per segnalazione) -->
+  <div id="mapPickModal" class="hidden" style="
+    position:fixed; inset:0; background:rgba(0,0,0,.55);
+    display:flex; align-items:center; justify-content:center; padding:14px; z-index:9999;">
+    <div style="background:rgba(16,24,42,.95); border:1px solid var(--line); border-radius:16px; width:min(980px,100%); overflow:hidden;">
+      <div style="padding:12px 14px; border-bottom:1px solid var(--line); display:flex; gap:10px; align-items:center;">
+        <b>📍 Seleziona punto sulla mappa</b>
+        <span class="muted small" id="pickHint" style="margin-left:auto;">Tocca la mappa per scegliere</span>
+      </div>
+      <div id="mapPick" style="height:60vh; min-height:320px;"></div>
+      <div style="padding:12px 14px; border-top:1px solid var(--line); display:flex; gap:10px; justify-content:flex-end;">
+        <button type="button" id="btnPickCancel" class="btn secondary">Annulla</button>
+        <button type="button" id="btnPickUse" class="btn">Usa questo punto</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -152,3 +188,4 @@
   </script>
 </body>
 </html>
+```0
