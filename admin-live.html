@@ -1,0 +1,464 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Admin Live — Cassino Hub</title>
+  <style>
+    :root{
+      --bg:#0b0f1a; --card:#10182a; --line:rgba(255,255,255,.08);
+      --txt:#eaf0ff; --muted:rgba(234,240,255,.72);
+      --accent:#7c5cff; --ok:#27d17f; --bad:#ff4d4d;
+      --shadow:0 12px 40px rgba(0,0,0,.35);
+      --radius:16px;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;
+      background:radial-gradient(900px 500px at 20% 10%, rgba(124,92,255,.20), transparent 60%),
+                 radial-gradient(900px 500px at 80% 20%, rgba(39,209,127,.14), transparent 60%),
+                 var(--bg);
+      color:var(--txt);
+    }
+    header{
+      padding:14px 16px;
+      border-bottom:1px solid var(--line);
+      background:rgba(16,24,42,.7);
+      backdrop-filter: blur(10px);
+      position:sticky; top:0; z-index:10;
+      display:flex; gap:10px; align-items:center; flex-wrap:wrap;
+    }
+    header h1{font-size:16px; margin:0}
+    .pill{
+      margin-left:auto;
+      padding:7px 10px; border:1px solid var(--line);
+      border-radius:999px; background:rgba(255,255,255,.03);
+      font-size:12px; color:var(--muted);
+      display:flex; gap:8px; align-items:center;
+    }
+    .dot{width:10px;height:10px;border-radius:50%;background:var(--bad)}
+    .dot.ok{background:var(--ok)}
+    main{
+      padding:16px;
+      max-width:1200px;
+      margin:0 auto;
+      display:grid;
+      gap:14px;
+      grid-template-columns: 1fr;
+    }
+    @media(min-width: 980px){
+      main{ grid-template-columns: 420px 1fr; }
+    }
+    .card{
+      background:rgba(16,24,42,.85);
+      border:1px solid var(--line);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      overflow:hidden;
+    }
+    .card h2{
+      font-size:14px; margin:0;
+      padding:12px 14px;
+      border-bottom:1px solid var(--line);
+      background:rgba(255,255,255,.02);
+    }
+    .content{padding:14px;}
+    label{ display:block; font-size:12px; color:var(--muted); margin:10px 0 6px; }
+    input, select{
+      width:100%;
+      padding:10px 11px;
+      border-radius:12px;
+      border:1px solid var(--line);
+      background:rgba(0,0,0,.18);
+      color:var(--txt);
+      outline:none;
+    }
+    .row{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+    .btns{ display:flex; gap:10px; flex-wrap:wrap; margin-top:12px; }
+    button{
+      border:0; border-radius:12px;
+      padding:10px 12px;
+      background:rgba(255,255,255,.06);
+      color:var(--txt);
+      cursor:pointer;
+      border:1px solid var(--line);
+    }
+    button.primary{ background: linear-gradient(135deg, var(--accent), rgba(124,92,255,.55)); }
+    button.ok{ background: linear-gradient(135deg, var(--ok), rgba(39,209,127,.55)); }
+    button.danger{ background: linear-gradient(135deg, var(--bad), rgba(255,77,77,.55)); }
+    .status{ margin-top:10px; font-size:12px; }
+    .status.ok{ color:var(--ok); }
+    .status.bad{ color:var(--bad); }
+    .muted{ color:var(--muted); font-size:12px; }
+    .small{ font-size:12px; }
+    .hr{ height:1px; background:var(--line); margin:12px 0; }
+    .list{
+      display:flex; flex-direction:column; gap:10px;
+      max-height: 72vh;
+      overflow:auto;
+      padding-right: 4px;
+    }
+    .item{
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:10px 10px;
+      background:rgba(255,255,255,.02);
+    }
+    .badges{ display:flex; gap:6px; flex-wrap:wrap; margin-bottom:6px; }
+    .badge{
+      font-size:11px; color:var(--muted);
+      border:1px solid var(--line);
+      padding:3px 7px; border-radius:999px;
+      background:rgba(0,0,0,.16);
+    }
+    img.thumb{
+      width:100%;
+      border-radius:14px;
+      border:1px solid var(--line);
+      margin-top:8px;
+    }
+    a.link{ color:var(--txt); text-decoration:underline; }
+  </style>
+</head>
+<body>
+<header>
+  <h1>🔔 Admin Live — Cassino Hub</h1>
+  <div class="pill">
+    <span class="dot" id="dot"></span>
+    <span id="pillText">Non connesso</span>
+  </div>
+</header>
+
+<main>
+  <!-- LEFT: CONFIG + QUICK LINKS -->
+  <section class="card">
+    <h2>Configurazione</h2>
+    <div class="content">
+      <label>Worker base URL</label>
+      <input id="workerBase" placeholder="https://...workers.dev" />
+
+      <label>Admin Key</label>
+      <input id="adminKey" placeholder="incolla la chiave admin" />
+
+      <div class="btns">
+        <button class="primary" id="btnSave">Salva</button>
+        <button id="btnTest">Test</button>
+        <button class="ok" id="btnStart">Avvia Live</button>
+        <button class="danger" id="btnStop" disabled>Stop</button>
+      </div>
+
+      <div class="row" style="margin-top:10px">
+        <span class="muted small">Intervallo controllo:</span>
+        <select id="pollMs" style="max-width:160px">
+          <option value="5000">5 sec</option>
+          <option value="10000" selected>10 sec</option>
+          <option value="15000">15 sec</option>
+          <option value="30000">30 sec</option>
+        </select>
+      </div>
+
+      <div class="status" id="cfgStatus"></div>
+
+      <div class="hr"></div>
+
+      <h2 style="padding:0;margin:0 0 6px 0;font-size:14px;">Link rapidi</h2>
+      <p class="muted small" style="margin:0 0 10px 0;">
+        Apri subito le altre pagine (nella stessa cartella della repo).
+      </p>
+
+      <div class="btns">
+        <button id="btnOpenApp">📲 App (index)</button>
+        <button id="btnOpenAdminLuoghi">🗺️ Admin Luoghi</button>
+        <button id="btnOpenLuoghiPub">📍 Luoghi (pubblico)</button>
+      </div>
+
+      <p class="muted small" style="margin-top:10px">
+        Notifiche: quando arriva una nuova segnalazione, la pagina prova a mostrare una notifica del browser.
+        Se ti chiede il permesso, premi <b>Consenti</b>.
+      </p>
+
+      <div class="btns">
+        <button id="btnEnableNotif">Abilita notifiche</button>
+        <button id="btnSoundTest">🔊 Test suono</button>
+      </div>
+
+      <audio id="beep" preload="auto">
+        <source src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAIlYAAESsAAACABAAZGF0YQAAAAA=" type="audio/wav">
+      </audio>
+    </div>
+  </section>
+
+  <!-- RIGHT: LIVE INBOX -->
+  <section class="card">
+    <h2>Segnalazioni ricevute (Live)</h2>
+    <div class="content">
+      <div class="row">
+        <span class="muted small" id="lastCheck">Ultimo controllo: —</span>
+        <span class="muted small" id="countInfo" style="margin-left:auto;">0</span>
+      </div>
+
+      <div class="hr"></div>
+
+      <div class="list" id="inbox"></div>
+    </div>
+  </section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+const STATE = {
+  base: "",
+  key: "",
+  timer: null,
+  lastTopId: null,
+  knownIds: new Set(),
+  running: false
+};
+
+function api(path){
+  return STATE.base.replace(/\/+$/,"") + path;
+}
+
+function setStatus(el, msg, ok){
+  el.textContent = msg || "";
+  el.className = "status " + (ok ? "ok" : "bad");
+}
+
+function updatePill(ok, text){
+  $("dot").classList.toggle("ok", !!ok);
+  $("pillText").textContent = text || (ok ? "Connesso" : "Non connesso");
+}
+
+function saveCfg(){
+  localStorage.setItem("ch_live_base", STATE.base);
+  localStorage.setItem("ch_live_key", STATE.key);
+}
+function loadCfg(){
+  STATE.base = localStorage.getItem("ch_live_base") || "https://cassino-segnalazioni.vocidicassinoproton-me.workers.dev";
+  STATE.key  = localStorage.getItem("ch_live_key") || "";
+  $("workerBase").value = STATE.base;
+  $("adminKey").value = STATE.key;
+
+  try{ updatePill(false, "Pronto: " + new URL(STATE.base).host); }
+  catch{ updatePill(false, "Pronto"); }
+}
+
+async function testConn(){
+  try{
+    const url = api("/list?ak=" + encodeURIComponent(STATE.key));
+    const res = await fetch(url, { method:"GET" });
+    const j = await res.json().catch(()=>null);
+
+    if(res.ok && j?.ok){
+      updatePill(true, "OK: " + new URL(STATE.base).host);
+      setStatus($("cfgStatus"), "Test OK ✅", true);
+      return true;
+    }
+    updatePill(false, "Errore");
+    setStatus($("cfgStatus"), "Test fallito ❌ (chiave o worker)", false);
+    return false;
+  }catch(e){
+    updatePill(false, "Offline");
+    setStatus($("cfgStatus"), "Errore rete/worker ❌", false);
+    return false;
+  }
+}
+
+function fmtDate(s){
+  try{ return new Date(s).toLocaleString("it-IT"); } catch { return s; }
+}
+
+function esc(s){
+  return String(s || "").replace(/[&<>"']/g, m=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;" }[m]));
+}
+
+function renderInbox(rows){
+  const root = $("inbox");
+  root.innerHTML = "";
+
+  if(!rows || rows.length === 0){
+    root.innerHTML = `<div class="muted small">Nessuna segnalazione nel database.</div>`;
+    $("countInfo").textContent = "0";
+    return;
+  }
+
+  $("countInfo").textContent = `${rows.length} (ultime 50)`;
+
+  for(const r of rows){
+    const el = document.createElement("div");
+    el.className = "item";
+    const hasGps = (r.lat !== null && r.lat !== undefined && r.lng !== null && r.lng !== undefined);
+    const gpsText = hasGps ? `Lat ${Number(r.lat).toFixed(6)} • Lng ${Number(r.lng).toFixed(6)}${r.accuracy ? ` • ±${r.accuracy}m` : ""}` : "Nessun GPS";
+    const photo = r.photoUrl ? `<img class="thumb" src="${r.photoUrl}?ak=${encodeURIComponent(STATE.key)}" alt="">` : "";
+
+    const mapsLink = hasGps
+      ? `https://www.google.com/maps?q=${encodeURIComponent(r.lat + "," + r.lng)}`
+      : null;
+
+    el.innerHTML = `
+      <div class="badges">
+        <span class="badge">${fmtDate(r.createdAt)}</span>
+        <span class="badge">${hasGps ? "GPS" : "No GPS"}</span>
+        ${r.photoUrl ? `<span class="badge">Foto</span>` : ``}
+      </div>
+      <b>${esc(r.title)}</b>
+      <div class="muted small" style="margin-top:6px">${esc(r.description || "")}</div>
+      ${photo}
+      <div class="muted small" style="margin-top:8px">${esc(gpsText)}</div>
+      ${mapsLink ? `<div class="muted small"><a class="link" href="${mapsLink}" target="_blank" rel="noreferrer">Apri su Google Maps</a></div>` : ``}
+      <div class="muted small">ID: ${esc(r.id)}</div>
+    `;
+    root.appendChild(el);
+  }
+}
+
+async function pollOnce({notifyNew} = {notifyNew:true}){
+  const now = new Date();
+  $("lastCheck").textContent = "Ultimo controllo: " + now.toLocaleTimeString("it-IT");
+
+  const url = api("/list?ak=" + encodeURIComponent(STATE.key));
+  const res = await fetch(url);
+  const j = await res.json().catch(()=>null);
+
+  if(!(res.ok && j?.ok)){
+    updatePill(false, "Errore list");
+    return;
+  }
+  updatePill(true, "Live: " + new URL(STATE.base).host);
+
+  const rows = j.rows || [];
+
+  // first time: populate known ids
+  if(STATE.knownIds.size === 0){
+    for(const r of rows) STATE.knownIds.add(r.id);
+    STATE.lastTopId = rows[0]?.id || null;
+    renderInbox(rows);
+    return;
+  }
+
+  // detect new items by id
+  const newOnes = [];
+  for(const r of rows){
+    if(!STATE.knownIds.has(r.id)){
+      newOnes.push(r);
+      STATE.knownIds.add(r.id);
+    }
+  }
+
+  if(newOnes.length > 0 && notifyNew){
+    // play sound
+    try{ $("beep").currentTime = 0; $("beep").play().catch(()=>{}); } catch {}
+
+    // browser notification (if granted)
+    if("Notification" in window && Notification.permission === "granted"){
+      const top = newOnes[0];
+      new Notification("Nuova segnalazione", {
+        body: (top.title || "Segnalazione") + " — " + (top.description || "").slice(0,80),
+        silent: true
+      });
+    }
+
+    // small status
+    setStatus($("cfgStatus"), `Nuove segnalazioni: ${newOnes.length} ✅`, true);
+  }
+
+  renderInbox(rows);
+}
+
+function startLive(){
+  if(STATE.running) return;
+  if(!STATE.base || !STATE.key){
+    setStatus($("cfgStatus"), "Inserisci Worker URL e Admin Key ❌", false);
+    return;
+  }
+
+  const ms = Number($("pollMs").value || "10000");
+
+  STATE.running = true;
+  $("btnStart").disabled = true;
+  $("btnStop").disabled = false;
+
+  pollOnce({notifyNew:false}); // first poll no notification spam
+  STATE.timer = setInterval(()=> pollOnce({notifyNew:true}), ms);
+
+  setStatus($("cfgStatus"), "Live attivo ✅", true);
+}
+
+function stopLive(){
+  STATE.running = false;
+  $("btnStart").disabled = false;
+  $("btnStop").disabled = true;
+
+  if(STATE.timer){
+    clearInterval(STATE.timer);
+    STATE.timer = null;
+  }
+  setStatus($("cfgStatus"), "Live fermato.", true);
+}
+
+// =====================
+// UI Events
+// =====================
+$("btnSave").addEventListener("click", ()=>{
+  STATE.base = $("workerBase").value.trim();
+  STATE.key  = $("adminKey").value.trim();
+  saveCfg();
+  setStatus($("cfgStatus"), "Salvato ✅", true);
+  try{ updatePill(false, "Pronto: " + new URL(STATE.base).host); } catch { updatePill(false, "Pronto"); }
+});
+
+$("btnTest").addEventListener("click", async ()=>{
+  STATE.base = $("workerBase").value.trim();
+  STATE.key  = $("adminKey").value.trim();
+  saveCfg();
+  await testConn();
+});
+
+$("btnStart").addEventListener("click", startLive);
+$("btnStop").addEventListener("click", stopLive);
+
+$("pollMs").addEventListener("change", ()=>{
+  if(STATE.running){
+    stopLive();
+    startLive();
+  }
+});
+
+$("btnEnableNotif").addEventListener("click", async ()=>{
+  if(!("Notification" in window)){
+    alert("Notifiche non supportate su questo browser.");
+    return;
+  }
+  const p = await Notification.requestPermission();
+  if(p === "granted") setStatus($("cfgStatus"), "Notifiche abilitate ✅", true);
+  else setStatus($("cfgStatus"), "Notifiche non abilitate.", false);
+});
+
+$("btnSoundTest").addEventListener("click", ()=>{
+  try{ $("beep").currentTime = 0; $("beep").play().catch(()=>{}); } catch {}
+});
+
+function openSameFolder(file){
+  // apre nella stessa cartella di admin-live.html
+  const base = location.href.split("/").slice(0,-1).join("/");
+  window.open(base + "/" + file, "_blank");
+}
+
+$("btnOpenApp").addEventListener("click", ()=> openSameFolder("index.html"));
+$("btnOpenAdminLuoghi").addEventListener("click", ()=> openSameFolder("admin-luoghi.html"));
+$("btnOpenLuoghiPub").addEventListener("click", ()=> openSameFolder("luoghi.html"));
+
+// =====================
+// INIT
+// =====================
+loadCfg();
+
+// auto test if key present
+if(STATE.key){
+  testConn();
+}
+</script>
+</body>
+</html>
+```0
