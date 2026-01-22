@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Cassino Hub — Luoghi & Recensioni</title>
+  <style>
+    :root{
+      --bg:#0b0f1a; --card:#10182a; --line:rgba(255,255,255,.08);
+      --txt:#eaf0ff; --muted:rgba(234,240,255,.72);
+      --accent:#7c5cff; --shadow:0 12px 40px rgba(0,0,0,.35);
+      --radius:16px;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;
+      background:radial-gradient(900px 500px at 20% 10%, rgba(124,92,255,.20), transparent 60%),
+                 radial-gradient(900px 500px at 80% 20%, rgba(39,209,127,.14), transparent 60%),
+                 var(--bg);
+      color:var(--txt);
+    }
+    header{
+      padding:16px 18px; border-bottom:1px solid var(--line);
+      background:rgba(16,24,42,.7); backdrop-filter: blur(10px);
+      position:sticky; top:0; z-index:10;
+      display:flex; align-items:center; gap:12px;
+    }
+    header h1{font-size:16px; margin:0}
+    header .pill{
+      margin-left:auto;
+      padding:7px 10px; border:1px solid var(--line);
+      border-radius:999px; background:rgba(255,255,255,.03);
+      font-size:12px; color:var(--muted);
+    }
+    main{
+      padding:16px;
+      max-width:1100px;
+      margin:0 auto;
+      display:grid;
+      gap:14px;
+      grid-template-columns: 1fr;
+    }
+    @media(min-width: 920px){
+      main{ grid-template-columns: 1fr 1fr; }
+    }
+    .card{
+      background:rgba(16,24,42,.85);
+      border:1px solid var(--line);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      overflow:hidden;
+    }
+    .card h2{
+      font-size:14px; margin:0;
+      padding:12px 14px;
+      border-bottom:1px solid var(--line);
+      background:rgba(255,255,255,.02);
+    }
+    .card .content{ padding:14px; }
+    label{ display:block; font-size:12px; color:var(--muted); margin:10px 0 6px; }
+    input, select{
+      width:100%;
+      padding:10px 11px;
+      border-radius:12px;
+      border:1px solid var(--line);
+      background:rgba(0,0,0,.18);
+      color:var(--txt);
+      outline:none;
+    }
+    .row{ display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
+    .muted{ color:var(--muted); font-size:12px; }
+    .small{ font-size:12px; }
+    .status{ margin-top:10px; font-size:12px; }
+    .status.ok{ color:#27d17f; }
+    .status.bad{ color:#ff4d4d; }
+    .list{
+      display:flex; flex-direction:column; gap:10px;
+      max-height: 520px;
+      overflow:auto;
+      padding-right:4px;
+    }
+    .item{
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:10px 10px;
+      background:rgba(255,255,255,.02);
+      cursor:pointer;
+    }
+    .item.active{ outline:2px solid rgba(124,92,255,.55); }
+    .badges{ display:flex; gap:6px; flex-wrap:wrap; margin-bottom:6px; }
+    .badge{
+      font-size:11px; color:var(--muted);
+      border:1px solid var(--line);
+      padding:3px 7px; border-radius:999px;
+      background:rgba(0,0,0,.16);
+    }
+    .stars{ font-size:14px; }
+    .hr{ height:1px; background:var(--line); margin:12px 0; }
+    a{ color:var(--txt); }
+    button{
+      border:0; border-radius:12px;
+      padding:10px 12px;
+      background:rgba(255,255,255,.06);
+      color:var(--txt);
+      cursor:pointer;
+      border:1px solid var(--line);
+    }
+    button.primary{ background: linear-gradient(135deg, var(--accent), rgba(124,92,255,.55)); }
+  </style>
+</head>
+<body>
+<header>
+  <h1>📍 Cassino Hub — Luoghi & Recensioni</h1>
+  <div class="pill" id="pill">Loading…</div>
+</header>
+
+<main>
+  <section class="card">
+    <h2>Luoghi</h2>
+    <div class="content">
+      <div class="row">
+        <div>
+          <label>Categoria</label>
+          <select id="type">
+            <option value="eat">🍽️ Dove mangiare</option>
+            <option value="shop">🛍️ Dove acquistare</option>
+            <option value="visit">📍 Posti da visitare</option>
+          </select>
+        </div>
+        <div>
+          <label>Cerca</label>
+          <input id="q" placeholder="nome / indirizzo / descrizione" />
+        </div>
+      </div>
+
+      <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;">
+        <button class="primary" id="btnLoad">Aggiorna</button>
+      </div>
+
+      <div class="status" id="statusPlaces"></div>
+
+      <div class="hr"></div>
+      <div class="muted small" id="placesHint">Tocca un luogo per vedere le recensioni.</div>
+      <div class="list" id="places"></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Recensioni</h2>
+    <div class="content">
+      <div class="muted small" id="sel">Nessun luogo selezionato.</div>
+      <div class="status" id="statusReviews"></div>
+
+      <div class="hr"></div>
+
+      <div class="muted small" id="summary"></div>
+      <div class="list" id="reviews"></div>
+    </div>
+  </section>
+</main>
+
+<script>
+const $ = (id)=>document.getElementById(id);
+
+// ✅ Metti qui il tuo Worker
+const WORKER_BASE = "https://cassino-segnalazioni.vocidicassinoproton-me.workers.dev";
+
+const STATE = {
+  places: [],
+  selected: null
+};
+
+function setPill(){
+  try{ $("pill").textContent = new URL(WORKER_BASE).host; }
+  catch{ $("pill").textContent = "Worker"; }
+}
+setPill();
+
+function api(path){ return WORKER_BASE.replace(/\/+$/,"") + path; }
+function esc(s){ return String(s||"").replace(/[&<>"']/g, m=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;" }[m])); }
+
+function status(el,msg,ok){
+  el.textContent = msg||"";
+  el.className = "status " + (ok ? "ok":"bad");
+}
+
+async function loadPlaces(){
+  const type = $("type").value;
+  const q = $("q").value.trim().toLowerCase();
+  status($("statusPlaces"), "Carico luoghi…", true);
+
+  try{
+    const res = await fetch(api("/places?type=" + encodeURIComponent(type)));
+    const j = await res.json();
+    if(!res.ok || !j.ok){
+      status($("statusPlaces"), "Errore caricamento luoghi ❌", false);
+      return;
+    }
+    let rows = j.rows || [];
+    if(q){
+      rows = rows.filter(p =>
+        (p.name||"").toLowerCase().includes(q) ||
+        (p.address||"").toLowerCase().includes(q) ||
+        (p.description||"").toLowerCase().includes(q)
+      );
+    }
+    STATE.places = rows;
+    renderPlaces();
+    status($("statusPlaces"), `OK: ${rows.length} luoghi ✅`, true);
+  }catch(e){
+    status($("statusPlaces"), "Errore rete ❌", false);
+  }
+}
+
+function renderPlaces(){
+  const root = $("places");
+  root.innerHTML = "";
+  if(STATE.places.length === 0){
+    root.innerHTML = `<div class="muted small">Nessun luogo in questa categoria.</div>`;
+    return;
+  }
+  for(const p of STATE.places){
+    const el = document.createElement("div");
+    el.className = "item" + (STATE.selected?.id === p.id ? " active" : "");
+    const typeLabel = p.type === "eat" ? "🍽️" : p.type === "shop" ? "🛍️" : "📍";
+    el.innerHTML = `
+      <div class="badges">
+        <span class="badge">${typeLabel}</span>
+        ${p.lat && p.lng ? `<span class="badge">GPS</span>` : `<span class="badge">No GPS</span>`}
+      </div>
+      <b>${esc(p.name)}</b>
+      ${p.address ? `<div class="muted small">${esc(p.address)}</div>` : ``}
+      ${p.description ? `<div class="muted small">${esc(p.description.slice(0,110))}${p.description.length>110?"…":""}</div>` : ``}
+    `;
+    el.addEventListener("click", ()=>{
+      STATE.selected = p;
+      $("sel").textContent = `Selezionato: ${p.name}`;
+      renderPlaces();
+      loadReviews();
+    });
+    root.appendChild(el);
+  }
+}
+
+async function loadReviews(){
+  const p = STATE.selected;
+  if(!p){
+    $("summary").textContent = "";
+    $("reviews").innerHTML = "";
+    return;
+  }
+  status($("statusReviews"), "Carico recensioni…", true);
+
+  try{
+    const res = await fetch(api("/reviews?placeId=" + encodeURIComponent(p.id)));
+    const j = await res.json();
+    if(!res.ok || !j.ok){
+      status($("statusReviews"), "Errore caricamento recensioni ❌", false);
+      return;
+    }
+
+    const avg = (j.avgRating === null) ? "-" : Number(j.avgRating).toFixed(2);
+    $("summary").textContent = `Recensioni: ${j.count} • Media: ${avg}`;
+    renderReviews(j.rows||[]);
+    status($("statusReviews"), "OK ✅", true);
+  }catch(e){
+    status($("statusReviews"), "Errore rete ❌", false);
+  }
+}
+
+function renderReviews(rows){
+  const root = $("reviews");
+  root.innerHTML = "";
+  if(rows.length === 0){
+    root.innerHTML = `<div class="muted small">Ancora nessuna recensione.</div>`;
+    return;
+  }
+  for(const r of rows){
+    const el = document.createElement("div");
+    el.className = "item";
+    const stars = "⭐".repeat(Number(r.rating||0));
+    el.innerHTML = `
+      <div class="badges">
+        <span class="badge"><span class="stars">${stars}</span> (${r.rating})</span>
+        <span class="badge">${new Date(r.createdAt).toLocaleString("it-IT")}</span>
+        ${r.author ? `<span class="badge">${esc(r.author)}</span>` : ``}
+      </div>
+      ${r.title ? `<b>${esc(r.title)}</b>` : `<b>Recensione</b>`}
+      ${r.body ? `<div class="muted small">${esc(r.body)}</div>` : ``}
+    `;
+    root.appendChild(el);
+  }
+}
+
+$("btnLoad").addEventListener("click", loadPlaces);
+$("type").addEventListener("change", ()=>{
+  STATE.selected = null;
+  $("sel").textContent = "Nessun luogo selezionato.";
+  $("summary").textContent = "";
+  $("reviews").innerHTML = "";
+  loadPlaces();
+});
+$("q").addEventListener("input", ()=>{
+  clearTimeout(window.__t);
+  window.__t = setTimeout(loadPlaces, 250);
+});
+
+// init
+loadPlaces();
+</script>
+</body>
+</html>
