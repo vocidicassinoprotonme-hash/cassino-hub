@@ -1,4 +1,5 @@
 {
+  "id": "/cassino-hub/admin/",
   "name": "Admin Segnalazioni",
   "short_name": "Admin CH",
   "start_url": "./admin.html",
