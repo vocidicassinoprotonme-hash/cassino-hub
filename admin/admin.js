@@ -1,4 +1,3 @@
-
 const $ = (id) => document.getElementById(id);
 
 const LS_KEY = "ch_admin_key";
@@ -40,10 +39,6 @@ function headers() {
   return { "X-Admin-Key": adminKey() };
 }
 
-function setConn(msg) {
-  $("connStatus").textContent = msg || "";
-}
-
 function escapeHTML(s){
   return (s || "").toString().replace(/[&<>"']/g, m => ({
     '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'
@@ -52,27 +47,29 @@ function escapeHTML(s){
 
 // ===== Fetch list =====
 async function refresh() {
-  setConn("Carico…");
+  $("saveStatus").textContent = "";
   $("btnRefresh").disabled = true;
+  $("connStatus").textContent = "Carico…";
 
   try {
     if (!adminKey()) {
-      setConn("Inserisci la Admin Key e premi Salva.");
+      $("connStatus").textContent = "Inserisci la Admin Key e premi Salva.";
       return;
     }
 
     const res = await fetch(`${apiBase()}/list`, { headers: headers() });
     if (!res.ok) {
-      setConn(`Errore: ${res.status} (${await res.text().catch(()=> "")})`);
+      $("connStatus").textContent = `Errore: ${res.status}`;
       return;
     }
+
     const data = await res.json();
     STATE.rows = data.rows || [];
     renderList();
-    setConn(`OK • ${STATE.rows.length} segnalazioni`);
+    $("connStatus").textContent = `OK • ${STATE.rows.length} segnalazioni`;
   } catch (e) {
     console.warn(e);
-    setConn("Errore rete o CORS.");
+    $("connStatus").textContent = "Errore rete o CORS.";
   } finally {
     $("btnRefresh").disabled = false;
   }
@@ -111,7 +108,7 @@ function renderList() {
   }
 }
 
-function select(id) {
+async function select(id) {
   STATE.selectedId = id;
   renderList();
 
@@ -126,30 +123,26 @@ function select(id) {
   $("dTitle").textContent = r.title || "";
   $("dDesc").textContent = r.description || "";
 
-  // Foto
+  // foto protetta: fetch con header -> blob URL
   if (r.photoUrl) {
     $("dPhotoWrap").classList.remove("hidden");
-    $("dPhoto").src = r.photoUrl; // /photo protetto ma passa header? QUI no.
-    // Soluzione: carichiamo la foto via fetch con header e la mettiamo come blob URL
-    loadProtectedImage(r.photoUrl);
+    await loadProtectedImage(r.photoUrl);
   } else {
     $("dPhotoWrap").classList.add("hidden");
     $("dPhoto").src = "";
   }
 
-  // Campi edit
   $("dStatus").value = r.status || "new";
   $("dTags").value = r.tags || "";
   $("dNote").value = r.adminNote || "";
   $("dReply").value = r.adminReply || "";
 
-  // Coordinate
   const hasCoords = (r.lat !== null && r.lat !== undefined && r.lng !== null && r.lng !== undefined);
   $("dCoords").textContent = hasCoords
     ? `Lat ${Number(r.lat).toFixed(6)} • Lng ${Number(r.lng).toFixed(6)}${r.accuracy ? ` • ±${Math.round(r.accuracy)}m` : ""}`
     : "Nessuna coordinata GPS.";
 
-  renderMap(hasCoords ? [r.lat, r.lng] : [41.492, 13.832], hasCoords);
+  renderMap(hasCoords ? [Number(r.lat), Number(r.lng)] : [41.492, 13.832], hasCoords);
 }
 
 async function loadProtectedImage(url) {
@@ -184,7 +177,7 @@ function renderMap(center, showMarker) {
   setTimeout(() => STATE.map.invalidateSize(), 50);
 }
 
-// ===== Save update =====
+// ===== SAVE UPDATE =====
 async function saveUpdate() {
   const id = STATE.selectedId;
   if (!id) return;
@@ -248,12 +241,12 @@ function exportJSON() {
 // ===== Events =====
 $("btnSaveKey").addEventListener("click", () => {
   save();
-  setConn("Salvato. Premi Aggiorna.");
+  $("connStatus").textContent = "Salvato. Premi Aggiorna.";
 });
 
 $("btnClearKey").addEventListener("click", () => {
   clear();
-  setConn("Rimosso.");
+  $("connStatus").textContent = "Rimosso.";
 });
 
 $("btnRefresh").addEventListener("click", refresh);
@@ -262,4 +255,4 @@ $("q").addEventListener("input", renderList);
 $("btnSave").addEventListener("click", saveUpdate);
 
 load();
-setConn("Inserisci Admin Key → Salva → Aggiorna");
+$("connStatus").textContent = "Inserisci Admin Key → Salva → Aggiorna";
