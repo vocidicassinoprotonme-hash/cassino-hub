@@ -3,11 +3,16 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#0b1220" />
   <title>Admin • Cassino Hub</title>
+
   <link rel="stylesheet" href="../styles.css" />
   <link rel="preconnect" href="https://unpkg.com" />
-  <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="manifest" href="./manifest.webmanifest" />
+
+  <!-- Leaflet (mappa) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
   <style>
     .layout{display:grid;grid-template-columns:380px 1fr;gap:14px}
     .layout .card{height: calc(100vh - 170px); overflow:auto;}
@@ -22,9 +27,7 @@
     }
   </style>
 </head>
-  <script>
-  if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js");
-  </script>
+
 <body>
   <header class="top">
     <div class="brand">
@@ -132,7 +135,15 @@
     </div>
   </main>
 
+  <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="./admin.js"></script>
+
+  <!-- ✅ Service Worker (messo nel punto giusto) -->
+  <script>
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("./sw.js");
+    }
+  </script>
 </body>
 </html>
