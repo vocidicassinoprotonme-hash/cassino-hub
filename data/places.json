@@ -1,5 +1,13 @@
 [
   {
+    "id": "0e9dc64b-13a0-4eac-a2fa-33f7fb2fbf22",
+    "name": "Anfiteatro romano",
+    "category": "cultura",
+    "description": "L'Anfiteatro di Montecassino, nella città di Cassino (FR), è un anfiteatro romano fatto costruire nel I secolo d.C dalla matrona Ummidia Quadratilla.\nDi forma quasi circolare, unica negli anfiteatri romani, misura 85m per 69m ed circondato da mura perimetrali in opus reticulatum alti 18,5m. All'interno dell'anfiteatro, immerso nel verde, si aprono 5 porte ad arco e nella parte superiore della struttura sono presenti mensole con feritoie per l'innesto dei pali che sorreggevano una eventuale copertura. Come per le altre strutture di questo genere, si suppone che l'anfiteatro venisse utilizzato per i ludi gladiatori, combattimenti all’ultimo sangue che potevano coinvolgere anche belve feroci.\nL'anfiteatro è all'interno dell'area archeologica di Cassino, che sorge lungo la strada che collega il centro urbano all’Abbazia di Montecassino, e che comprende anche il museo, il teatro e il Mausoleo di Ummidia Quadratilla. Una parte di esso è ancora utilizzata per spettacoli e rappresentazioni.",
+    "lat": 41.483957,
+    "lng": 13.819554
+  },
+  {
     "id": "02ef5581-01e4-4b06-ba1c-7f344b1c19e3",
     "name": "Terme Varoniane",
     "category": "cultura",
