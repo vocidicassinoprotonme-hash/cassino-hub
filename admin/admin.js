@@ -77,7 +77,8 @@ function bootSettings(){
 function ensureGithubBox(){
   if(document.getElementById("ghBox")) return;
 
-  const connCard = document.querySelector(".container .card");
+  const apiInput = document.getElementById("apiBase");
+  const connCard = apiInput ? apiInput.closest(".card") : null;
   if(!connCard) return;
 
   const box = document.createElement("div");
