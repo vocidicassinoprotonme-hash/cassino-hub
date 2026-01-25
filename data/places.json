@@ -1,0 +1,18 @@
+[
+  {
+    "id": "p1",
+    "name": "Abbazia di Montecassino",
+    "category": "cultura",
+    "description": "Punto panoramico e luogo simbolo: ideale al tramonto.",
+    "lat": 41.4909,
+    "lng": 13.8134
+  },
+  {
+    "id": "p2",
+    "name": "Centro / Corso della Repubblica",
+    "category": "passeggiata",
+    "description": "Passeggiata serale e vita cittadina.",
+    "lat": 41.4908,
+    "lng": 13.8306
+  }
+]
