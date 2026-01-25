@@ -599,8 +599,8 @@ function saveEditorItem(){
 
   const isReview = EDIT_MODE === "reviews";
 
-  const lat = $("edLat").value ? Number($("#edLat").value) : null;
-  const lng = $("edLng").value ? Number($("#edLng").value) : null;
+  const lat = $("edLat").value ? Number($("edLat").value) : null;
+  const lng = $("edLng").value ? Number($("edLng").value) : null;
 
   if(isReview){
     const obj = {
