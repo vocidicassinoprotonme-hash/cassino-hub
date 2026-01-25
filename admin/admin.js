@@ -22,8 +22,11 @@ const STATE = {
   placesSha: null,
   reviewsSha: null,
 
-  map: null,
-  pin: null
+  // MAPPE separate
+  reportMap: null,
+  reportPin: null,
+  editorMap: null,
+  editorPin: null
 };
 
 // =============== UTIL ===============
@@ -50,31 +53,28 @@ function nowISO(){ return new Date().toISOString(); }
 function uid(){ return crypto.randomUUID(); }
 
 function headersAdmin(){
-  return {
-    "X-Admin-Key": STATE.adminKey
-  };
+  return { "X-Admin-Key": STATE.adminKey };
 }
 
 // =============== BOOT: carica impostazioni ===============
 function bootSettings(){
-  STATE.apiBase = load(LS.API_BASE, $("apiBase")?.value || "");
+  STATE.apiBase  = load(LS.API_BASE, $("apiBase")?.value || "");
   STATE.adminKey = load(LS.ADMIN_KEY, "");
-  STATE.ghToken = load(LS.GH_TOKEN, "");
-  STATE.ghRepo = load(LS.GH_REPO, "");
+  STATE.ghToken  = load(LS.GH_TOKEN, "");
+  STATE.ghRepo   = load(LS.GH_REPO, "");
 
-  $("apiBase").value = STATE.apiBase || $("apiBase").value;
-  $("adminKey").value = STATE.adminKey;
-  $("connStatus").textContent = "";
+  if ($("apiBase")) $("apiBase").value = STATE.apiBase || $("apiBase").value;
+  if ($("adminKey")) $("adminKey").value = STATE.adminKey;
+  if ($("connStatus")) $("connStatus").textContent = "";
 
   // area GitHub semplice (aggiungo io i campi se non esistono)
   ensureGithubBox();
-  $("ghToken").value = STATE.ghToken;
-  $("ghRepo").value = STATE.ghRepo;
+  if ($("ghToken")) $("ghToken").value = STATE.ghToken;
+  if ($("ghRepo")) $("ghRepo").value = STATE.ghRepo;
 }
 
 // =============== UI: aggiungiamo box GitHub + gestione contenuti ===============
 function ensureGithubBox(){
-  // se già creato, stop
   if(document.getElementById("ghBox")) return;
 
   const connCard = document.querySelector(".container .card");
@@ -181,7 +181,7 @@ function ensureGithubBox(){
 
         <hr>
         <h3>Mappa</h3>
-        <div id="map" class="map"></div>
+        <div id="mapEd" class="map"></div>
         <p class="muted mini">Clicca sulla mappa per impostare Lat/Lng quando la modalità “Seleziona su mappa” è attiva.</p>
       </div>
     </div>
@@ -189,11 +189,8 @@ function ensureGithubBox(){
 
   connCard.appendChild(box);
 
-  // bind pulsanti GitHub/manager
   $("btnLoadContent").addEventListener("click", loadContentFromGithub);
-  $("btnOpenManager").addEventListener("click", () => {
-    $("manager").classList.toggle("hidden");
-  });
+  $("btnOpenManager").addEventListener("click", () => $("manager").classList.toggle("hidden"));
 
   $("tabPlaces").addEventListener("click", () => showManager("places"));
   $("tabReviews").addEventListener("click", () => showManager("reviews"));
@@ -333,14 +330,13 @@ function selectReport(id){
 
   $("saveStatus").textContent = "";
 
-  ensureMap();
-  renderMapPin(r.lat, r.lng);
+  ensureReportMap();
+  renderReportPin(r.lat, r.lng);
 }
 
 $("btnSave").addEventListener("click", async ()=>{
   if(!STATE.selected) return;
   const base = STATE.apiBase;
-  const key  = STATE.adminKey;
 
   const payload = {
     id: STATE.selected.id,
@@ -367,7 +363,6 @@ $("btnSave").addEventListener("click", async ()=>{
 
     $("saveStatus").textContent = "Salvato ✅";
 
-    // aggiorna in memoria
     Object.assign(STATE.selected, {
       status: data.status,
       tags: data.tags,
@@ -392,34 +387,60 @@ function exportReports(){
   URL.revokeObjectURL(a.href);
 }
 
-// =============== MAP (admin) ===============
+// =============== MAP SEGNALAZIONI (solo visualizzazione) ===============
+function ensureReportMap(){
+  if(STATE.reportMap) return;
+  const el = $("map");
+  if(!el) return; // se non esiste nel tuo HTML, non creare la mappa
+
+  STATE.reportMap = L.map("map");
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(STATE.reportMap);
+  STATE.reportMap.setView([41.492, 13.832], 13);
+}
+
+function renderReportPin(lat, lng){
+  if(!STATE.reportMap) return;
+  if(STATE.reportPin){ STATE.reportPin.remove(); STATE.reportPin = null; }
+
+  if(isNum(lat) && isNum(lng)){
+    STATE.reportPin = L.marker([lat, lng]).addTo(STATE.reportMap);
+    STATE.reportMap.setView([lat, lng], 15);
+  } else {
+    STATE.reportMap.setView([41.492, 13.832], 13);
+  }
+}
+
+// =============== MAP EDITOR (pick su mappa) ===============
 let PICK_MODE = false;
 
-function ensureMap(){
-  if(STATE.map) return;
-  STATE.map = L.map("map");
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(STATE.map);
-  STATE.map.setView([41.492, 13.832], 13);
+function ensureEditorMap(){
+  if(STATE.editorMap) return;
+  const el = $("mapEd");
+  if(!el) return;
 
-  STATE.map.on("click", (e)=>{
+  STATE.editorMap = L.map("mapEd");
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(STATE.editorMap);
+  STATE.editorMap.setView([41.492, 13.832], 13);
+
+  STATE.editorMap.on("click", (e)=>{
     if(!PICK_MODE) return;
     const { lat, lng } = e.latlng;
     $("edLat").value = lat.toFixed(6);
     $("edLng").value = lng.toFixed(6);
-    renderMapPin(lat, lng);
+    renderEditorPin(lat, lng);
     $("edStatus").textContent = "Coordinate impostate dalla mappa ✅";
   });
 }
 
-function renderMapPin(lat, lng){
-  if(!STATE.map) return;
-  if(STATE.pin){ STATE.pin.remove(); STATE.pin = null; }
+function renderEditorPin(lat, lng){
+  if(!STATE.editorMap) return;
+  if(STATE.editorPin){ STATE.editorPin.remove(); STATE.editorPin = null; }
 
   if(isNum(lat) && isNum(lng)){
-    STATE.pin = L.marker([lat, lng]).addTo(STATE.map);
-    STATE.map.setView([lat, lng], 15);
+    STATE.editorPin = L.marker([lat, lng]).addTo(STATE.editorMap);
+    STATE.editorMap.setView([lat, lng], 15);
   } else {
-    STATE.map.setView([41.492, 13.832], 13);
+    STATE.editorMap.setView([41.492, 13.832], 13);
   }
 }
 
@@ -451,9 +472,9 @@ async function ghPutFile(path, contentStr, sha, message){
 
   const body = {
     message,
-    content: btoa(unescape(encodeURIComponent(contentStr))),
-    sha
+    content: btoa(unescape(encodeURIComponent(contentStr)))
   };
+  if(sha) body.sha = sha; // <-- importante: solo se esiste
 
   const res = await fetch(url, {
     method: "PUT",
@@ -468,7 +489,7 @@ async function ghPutFile(path, contentStr, sha, message){
 
 async function loadContentFromGithub(){
   STATE.ghToken = $("ghToken").value.trim();
-  STATE.ghRepo = $("ghRepo").value.trim();
+  STATE.ghRepo  = $("ghRepo").value.trim();
   save(LS.GH_TOKEN, STATE.ghToken);
   save(LS.GH_REPO, STATE.ghRepo);
 
@@ -479,12 +500,10 @@ async function loadContentFromGithub(){
 
   $("ghStatus").textContent = "Carico file da GitHub...";
   try{
-    // places
     const placesFile = await ghGetFile("data/places.json");
     STATE.placesSha = placesFile.sha;
     STATE.places = JSON.parse(decodeURIComponent(escape(atob(placesFile.content))));
 
-    // reviews
     const reviewsFile = await ghGetFile("data/reviews.json");
     STATE.reviewsSha = reviewsFile.sha;
     STATE.reviews = JSON.parse(decodeURIComponent(escape(atob(reviewsFile.content))));
@@ -555,7 +574,9 @@ function openEditor(mode, id){
   EDIT_ID = id;
 
   $("editor").classList.remove("hidden");
-  ensureMap();
+
+  // mappa editor (solo quando editor è visibile)
+  ensureEditorMap();
 
   const isReview = mode === "reviews";
   $("edRatingWrap").classList.toggle("hidden", !isReview);
@@ -569,7 +590,7 @@ function openEditor(mode, id){
     $("edDesc").value = item?.text || "";
     $("edLat").value  = (isNum(item?.lat) ? item.lat : "");
     $("edLng").value  = (isNum(item?.lng) ? item.lng : "");
-    $("#edRating").value = item?.rating ?? 5;
+    $("edRating").value = item?.rating ?? 5; // <-- FIX: niente "#"
   } else {
     $("edName").value = item?.name || "";
     $("edCat").value  = item?.category || "";
@@ -580,7 +601,7 @@ function openEditor(mode, id){
 
   const lat = Number($("edLat").value);
   const lng = Number($("edLng").value);
-  renderMapPin(Number.isFinite(lat)?lat:null, Number.isFinite(lng)?lng:null);
+  renderEditorPin(Number.isFinite(lat)?lat:null, Number.isFinite(lng)?lng:null);
 
   $("edStatus").textContent = id ? "Modifica elemento esistente." : "Nuovo elemento.";
 }
@@ -676,9 +697,15 @@ async function publishToGithub(){
     $("ghStatus").textContent = "Inserisci Token e Repo.";
     return;
   }
+
+  // se manca sha, ricarica prima (evita 409)
   if(!STATE.placesSha || !STATE.reviewsSha){
-    $("ghStatus").textContent = "Prima fai: Carica Posti/Recensioni.";
-    return;
+    $("ghStatus").textContent = "Ricarico Posti/Recensioni per sicurezza...";
+    await loadContentFromGithub();
+    if(!STATE.placesSha || !STATE.reviewsSha){
+      $("ghStatus").textContent = "Prima fai: Carica Posti/Recensioni.";
+      return;
+    }
   }
 
   $("ghStatus").textContent = "Pubblico su GitHub...";
