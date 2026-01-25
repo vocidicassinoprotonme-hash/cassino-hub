@@ -67,7 +67,6 @@ function bootSettings(){
   if ($("adminKey")) $("adminKey").value = STATE.adminKey;
   if ($("connStatus")) $("connStatus").textContent = "";
 
-  // area GitHub semplice (aggiungo io i campi se non esistono)
   ensureGithubBox();
   if ($("ghToken")) $("ghToken").value = STATE.ghToken;
   if ($("ghRepo")) $("ghRepo").value = STATE.ghRepo;
@@ -77,6 +76,7 @@ function bootSettings(){
 function ensureGithubBox(){
   if(document.getElementById("ghBox")) return;
 
+  // Aggancia il box GitHub nella card "Connessione" (quella con #apiBase)
   const apiInput = document.getElementById("apiBase");
   const connCard = apiInput ? apiInput.closest(".card") : null;
   if(!connCard) return;
@@ -99,8 +99,8 @@ function ensureGithubBox(){
     </label>
 
     <div class="row">
-      <button id="btnLoadContent" class="btn secondary">Carica Posti/Recensioni</button>
-      <button id="btnOpenManager" class="btn">Gestisci</button>
+      <button id="btnLoadContent" class="btn secondary" type="button">Carica Posti/Recensioni</button>
+      <button id="btnOpenManager" class="btn" type="button">Gestisci</button>
     </div>
 
     <p id="ghStatus" class="muted mini"></p>
@@ -109,15 +109,15 @@ function ensureGithubBox(){
       <div class="row space">
         <h3>Gestione Contenuti</h3>
         <div class="row">
-          <button id="tabPlaces" class="btn secondary">Posti</button>
-          <button id="tabReviews" class="btn secondary">Recensioni</button>
+          <button id="tabPlaces" class="btn secondary" type="button">Posti</button>
+          <button id="tabReviews" class="btn secondary" type="button">Recensioni</button>
         </div>
       </div>
 
       <div id="mgrPlaces" class="card" style="margin-top:10px">
         <div class="row space">
           <h4>Posti</h4>
-          <button id="btnAddPlace" class="btn">+ Aggiungi</button>
+          <button id="btnAddPlace" class="btn" type="button">+ Aggiungi</button>
         </div>
         <div id="placesList" class="list"></div>
       </div>
@@ -125,7 +125,7 @@ function ensureGithubBox(){
       <div id="mgrReviews" class="card hidden" style="margin-top:10px">
         <div class="row space">
           <h4>Recensioni</h4>
-          <button id="btnAddReview" class="btn">+ Aggiungi</button>
+          <button id="btnAddReview" class="btn" type="button">+ Aggiungi</button>
         </div>
         <div id="reviewsList" class="list"></div>
       </div>
@@ -133,7 +133,7 @@ function ensureGithubBox(){
       <div id="editor" class="card hidden" style="margin-top:10px">
         <div class="row space">
           <h4 id="edTitle">Editor</h4>
-          <button id="btnCloseEditor" class="btn danger">Chiudi</button>
+          <button id="btnCloseEditor" class="btn danger" type="button">Chiudi</button>
         </div>
 
         <div class="grid2">
@@ -172,17 +172,10 @@ function ensureGithubBox(){
         </div>
 
         <div class="row">
-          <button type="button" id="btnCloseEditor" class="btn danger">Chiudi</button>
-          <button type="button" id="btnLoadContent" class="btn secondary">Carica Posti/Recensioni</button>
-          <button type="button" id="btnOpenManager" class="btn">Gestisci</button>
-          <button type="button" id="tabPlaces" class="btn secondary">Posti</button>
-          <button type="button" id="tabReviews" class="btn secondary">Recensioni</button>
-          <button type="button" id="btnAddPlace" class="btn">+ Aggiungi</button>
-          <button type="button" id="btnAddReview" class="btn">+ Aggiungi</button>
-          <button type="button" id="btnPickOnMap" class="btn secondary">📍 Seleziona su mappa</button>
-          <button type="button" id="btnSaveItem" class="btn">💾 Salva</button>
-          <button type="button" id="btnDeleteItem" class="btn danger">Elimina</button>
-          <button type="button" id="btnPublish" class="btn">🚀 Pubblica su GitHub</button>
+          <button id="btnPickOnMap" class="btn secondary" type="button">📍 Seleziona su mappa</button>
+          <button id="btnSaveItem" class="btn" type="button">💾 Salva</button>
+          <button id="btnDeleteItem" class="btn danger" type="button">Elimina</button>
+          <button id="btnPublish" class="btn" type="button">🚀 Pubblica su GitHub</button>
         </div>
 
         <p id="edStatus" class="muted mini"></p>
@@ -197,79 +190,81 @@ function ensureGithubBox(){
 
   connCard.appendChild(box);
 
-  $("btnLoadContent").addEventListener("click", loadContentFromGithub);
-  $("btnOpenManager").addEventListener("click", () => $("manager").classList.toggle("hidden"));
+  // bind pulsanti GitHub/manager
+  $("btnLoadContent")?.addEventListener("click", loadContentFromGithub);
+  $("btnOpenManager")?.addEventListener("click", () => $("manager")?.classList.toggle("hidden"));
 
-  $("tabPlaces").addEventListener("click", () => showManager("places"));
-  $("tabReviews").addEventListener("click", () => showManager("reviews"));
+  $("tabPlaces")?.addEventListener("click", () => showManager("places"));
+  $("tabReviews")?.addEventListener("click", () => showManager("reviews"));
 
-  $("btnAddPlace").addEventListener("click", () => openEditor("places", null));
-  $("btnAddReview").addEventListener("click", () => openEditor("reviews", null));
+  $("btnAddPlace")?.addEventListener("click", () => openEditor("places", null));
+  $("btnAddReview")?.addEventListener("click", () => openEditor("reviews", null));
 
-  $("btnCloseEditor").addEventListener("click", closeEditor);
-  $("btnPickOnMap").addEventListener("click", togglePickOnMap);
-  $("btnSaveItem").addEventListener("click", saveEditorItem);
-  $("btnDeleteItem").addEventListener("click", deleteEditorItem);
-  $("btnPublish").addEventListener("click", publishToGithub);
+  $("btnCloseEditor")?.addEventListener("click", closeEditor);
+  $("btnPickOnMap")?.addEventListener("click", togglePickOnMap);
+  $("btnSaveItem")?.addEventListener("click", saveEditorItem);
+  $("btnDeleteItem")?.addEventListener("click", deleteEditorItem);
+  $("btnPublish")?.addEventListener("click", publishToGithub);
 }
 
 function showManager(which){
-  $("mgrPlaces").classList.toggle("hidden", which !== "places");
-  $("mgrReviews").classList.toggle("hidden", which !== "reviews");
+  $("mgrPlaces")?.classList.toggle("hidden", which !== "places");
+  $("mgrReviews")?.classList.toggle("hidden", which !== "reviews");
 }
 
 // =============== SALVATAGGIO chiavi (admin worker) ===============
-$("btnSaveKey").addEventListener("click", ()=>{
-  STATE.apiBase = $("apiBase").value.trim();
-  STATE.adminKey = $("adminKey").value.trim();
+$("btnSaveKey")?.addEventListener("click", ()=>{
+  STATE.apiBase = ($("apiBase")?.value || "").trim();
+  STATE.adminKey = ($("adminKey")?.value || "").trim();
   save(LS.API_BASE, STATE.apiBase);
   save(LS.ADMIN_KEY, STATE.adminKey);
-  $("connStatus").textContent = "Salvato ✅";
+  if ($("connStatus")) $("connStatus").textContent = "Salvato ✅";
 });
 
-$("btnClearKey").addEventListener("click", ()=>{
+$("btnClearKey")?.addEventListener("click", ()=>{
   del(LS.ADMIN_KEY);
-  $("adminKey").value = "";
+  if ($("adminKey")) $("adminKey").value = "";
   STATE.adminKey = "";
-  $("connStatus").textContent = "Rimosso ✅";
+  if ($("connStatus")) $("connStatus").textContent = "Rimosso ✅";
 });
 
-$("btnRefresh").addEventListener("click", loadReports);
-$("btnExport").addEventListener("click", exportReports);
+$("btnRefresh")?.addEventListener("click", loadReports);
+$("btnExport")?.addEventListener("click", exportReports);
 
 // =============== REPORTS: list + dettaglio ===============
 async function loadReports(){
-  const base = ($("apiBase").value || "").trim();
-  const key  = ($("adminKey").value || "").trim();
+  const base = ($("apiBase")?.value || "").trim();
+  const key  = ($("adminKey")?.value || "").trim();
   STATE.apiBase = base;
   STATE.adminKey = key;
   save(LS.API_BASE, base);
   save(LS.ADMIN_KEY, key);
 
   if(!base || !key){
-    $("connStatus").textContent = "Inserisci Worker base URL e Admin Key.";
+    if ($("connStatus")) $("connStatus").textContent = "Inserisci Worker base URL e Admin Key.";
     return;
   }
 
-  $("connStatus").textContent = "Carico...";
+  if ($("connStatus")) $("connStatus").textContent = "Carico...";
   try{
     const res = await fetch(`${base}/list`, { headers: headersAdmin() });
     if(!res.ok){
-      $("connStatus").textContent = `Errore /list: ${res.status}`;
+      if ($("connStatus")) $("connStatus").textContent = `Errore /list: ${res.status}`;
       return;
     }
     const data = await res.json();
     STATE.reports = data.rows || [];
-    $("connStatus").textContent = `OK ✅ ${STATE.reports.length} segnalazioni`;
+    if ($("connStatus")) $("connStatus").textContent = `OK ✅ ${STATE.reports.length} segnalazioni`;
     renderReportList();
   } catch(e){
     console.warn(e);
-    $("connStatus").textContent = "Errore rete.";
+    if ($("connStatus")) $("connStatus").textContent = "Errore rete.";
   }
 }
 
 function renderReportList(){
   const root = $("list");
+  if(!root) return;
   root.innerHTML = "";
 
   const q = ($("q")?.value || "").toLowerCase().trim();
@@ -309,52 +304,53 @@ function selectReport(id){
   if(!r) return;
   STATE.selected = r;
 
-  $("detailEmpty").classList.add("hidden");
-  $("detail").classList.remove("hidden");
+  $("detailEmpty")?.classList.add("hidden");
+  $("detail")?.classList.remove("hidden");
 
-  $("selMeta").textContent = `${new Date(r.createdAt).toLocaleString("it-IT")} • ${r.id}`;
+  if ($("selMeta")) $("selMeta").textContent = `${new Date(r.createdAt).toLocaleString("it-IT")} • ${r.id}`;
 
-  $("dTitle").textContent = r.title || "";
-  $("dDesc").textContent  = r.description || "";
+  if ($("dTitle")) $("dTitle").textContent = r.title || "";
+  if ($("dDesc")) $("dDesc").textContent  = r.description || "";
 
   if(r.photoUrl){
-    $("dPhotoWrap").classList.remove("hidden");
-    $("dPhoto").src = `${STATE.apiBase}/photo?key=${encodeURIComponent(r.photoKey)}&ak=${encodeURIComponent(STATE.adminKey)}`;
+    $("dPhotoWrap")?.classList.remove("hidden");
+    if ($("dPhoto")) $("dPhoto").src = `${STATE.apiBase}/photo?key=${encodeURIComponent(r.photoKey)}&ak=${encodeURIComponent(STATE.adminKey)}`;
   } else {
-    $("dPhotoWrap").classList.add("hidden");
-    $("dPhoto").removeAttribute("src");
+    $("dPhotoWrap")?.classList.add("hidden");
+    $("dPhoto")?.removeAttribute("src");
   }
 
   if(isNum(r.lat) && isNum(r.lng)){
-    $("dCoords").textContent = `Lat ${r.lat.toFixed(6)} • Lng ${r.lng.toFixed(6)}${r.accuracy ? ` • ±${Math.round(r.accuracy)}m` : ""}`;
+    if ($("dCoords")) $("dCoords").textContent =
+      `Lat ${r.lat.toFixed(6)} • Lng ${r.lng.toFixed(6)}${r.accuracy ? ` • ±${Math.round(r.accuracy)}m` : ""}`;
   } else {
-    $("dCoords").textContent = "Nessuna coordinata.";
+    if ($("dCoords")) $("dCoords").textContent = "Nessuna coordinata.";
   }
 
-  $("dStatus").value = r.status || "new";
-  $("dTags").value = r.tags || "";
-  $("dNote").value = r.adminNote || "";
-  $("dReply").value = r.adminReply || "";
+  if ($("dStatus")) $("dStatus").value = r.status || "new";
+  if ($("dTags")) $("dTags").value = r.tags || "";
+  if ($("dNote")) $("dNote").value = r.adminNote || "";
+  if ($("dReply")) $("dReply").value = r.adminReply || "";
 
-  $("saveStatus").textContent = "";
+  if ($("saveStatus")) $("saveStatus").textContent = "";
 
   ensureReportMap();
   renderReportPin(r.lat, r.lng);
 }
 
-$("btnSave").addEventListener("click", async ()=>{
+$("btnSave")?.addEventListener("click", async ()=>{
   if(!STATE.selected) return;
   const base = STATE.apiBase;
 
   const payload = {
     id: STATE.selected.id,
-    status: $("dStatus").value,
-    tags: $("dTags").value,
-    adminNote: $("dNote").value,
-    adminReply: $("dReply").value
+    status: $("dStatus")?.value,
+    tags: $("dTags")?.value,
+    adminNote: $("dNote")?.value,
+    adminReply: $("dReply")?.value
   };
 
-  $("saveStatus").textContent = "Salvo...";
+  if ($("saveStatus")) $("saveStatus").textContent = "Salvo...";
   try{
     const res = await fetch(`${base}/admin/update`, {
       method: "POST",
@@ -364,12 +360,12 @@ $("btnSave").addEventListener("click", async ()=>{
 
     const data = await res.json().catch(()=>null);
     if(!res.ok || !data?.ok){
-      $("saveStatus").textContent = `Errore: ${res.status}`;
+      if ($("saveStatus")) $("saveStatus").textContent = `Errore: ${res.status}`;
       console.log("update error", data);
       return;
     }
 
-    $("saveStatus").textContent = "Salvato ✅";
+    if ($("saveStatus")) $("saveStatus").textContent = "Salvato ✅";
 
     Object.assign(STATE.selected, {
       status: data.status,
@@ -382,7 +378,7 @@ $("btnSave").addEventListener("click", async ()=>{
     renderReportList();
   } catch(e){
     console.warn(e);
-    $("saveStatus").textContent = "Errore rete.";
+    if ($("saveStatus")) $("saveStatus").textContent = "Errore rete.";
   }
 });
 
@@ -399,7 +395,7 @@ function exportReports(){
 function ensureReportMap(){
   if(STATE.reportMap) return;
   const el = $("map");
-  if(!el) return; // se non esiste nel tuo HTML, non creare la mappa
+  if(!el) return;
 
   STATE.reportMap = L.map("map");
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(STATE.reportMap);
@@ -433,10 +429,10 @@ function ensureEditorMap(){
   STATE.editorMap.on("click", (e)=>{
     if(!PICK_MODE) return;
     const { lat, lng } = e.latlng;
-    $("edLat").value = lat.toFixed(6);
-    $("edLng").value = lng.toFixed(6);
+    if ($("edLat")) $("edLat").value = lat.toFixed(6);
+    if ($("edLng")) $("edLng").value = lng.toFixed(6);
     renderEditorPin(lat, lng);
-    $("edStatus").textContent = "Coordinate impostate dalla mappa ✅";
+    if ($("edStatus")) $("edStatus").textContent = "Coordinate impostate dalla mappa ✅";
   });
 }
 
@@ -454,8 +450,8 @@ function renderEditorPin(lat, lng){
 
 function togglePickOnMap(){
   PICK_MODE = !PICK_MODE;
-  $("btnPickOnMap").textContent = PICK_MODE ? "✅ Click sulla mappa..." : "📍 Seleziona su mappa";
-  $("edStatus").textContent = PICK_MODE ? "Modalità selezione: clicca un punto sulla mappa." : "";
+  if ($("btnPickOnMap")) $("btnPickOnMap").textContent = PICK_MODE ? "✅ Click sulla mappa..." : "📍 Seleziona su mappa";
+  if ($("edStatus")) $("edStatus").textContent = PICK_MODE ? "Modalità selezione: clicca un punto sulla mappa." : "";
 }
 
 // =============== GITHUB: load + publish ===============
@@ -482,7 +478,7 @@ async function ghPutFile(path, contentStr, sha, message){
     message,
     content: btoa(unescape(encodeURIComponent(contentStr)))
   };
-  if(sha) body.sha = sha; // <-- importante: solo se esiste
+  if(sha) body.sha = sha;
 
   const res = await fetch(url, {
     method: "PUT",
@@ -496,17 +492,17 @@ async function ghPutFile(path, contentStr, sha, message){
 }
 
 async function loadContentFromGithub(){
-  STATE.ghToken = $("ghToken").value.trim();
-  STATE.ghRepo  = $("ghRepo").value.trim();
+  STATE.ghToken = ($("ghToken")?.value || "").trim();
+  STATE.ghRepo  = ($("ghRepo")?.value || "").trim();
   save(LS.GH_TOKEN, STATE.ghToken);
   save(LS.GH_REPO, STATE.ghRepo);
 
   if(!STATE.ghToken || !STATE.ghRepo){
-    $("ghStatus").textContent = "Inserisci GitHub Token e Repo.";
+    if ($("ghStatus")) $("ghStatus").textContent = "Inserisci GitHub Token e Repo.";
     return;
   }
 
-  $("ghStatus").textContent = "Carico file da GitHub...";
+  if ($("ghStatus")) $("ghStatus").textContent = "Carico file da GitHub...";
   try{
     const placesFile = await ghGetFile("data/places.json");
     STATE.placesSha = placesFile.sha;
@@ -516,17 +512,18 @@ async function loadContentFromGithub(){
     STATE.reviewsSha = reviewsFile.sha;
     STATE.reviews = JSON.parse(decodeURIComponent(escape(atob(reviewsFile.content))));
 
-    $("ghStatus").textContent = `OK ✅ Posti: ${STATE.places.length} • Recensioni: ${STATE.reviews.length}`;
+    if ($("ghStatus")) $("ghStatus").textContent = `OK ✅ Posti: ${STATE.places.length} • Recensioni: ${STATE.reviews.length}`;
     renderPlacesAdmin();
     renderReviewsAdmin();
   } catch(e){
     console.warn(e);
-    $("ghStatus").textContent = "Errore caricamento: controlla token/repo/percorso file.";
+    if ($("ghStatus")) $("ghStatus").textContent = "Errore caricamento: controlla token/repo/percorso file.";
   }
 }
 
 function renderPlacesAdmin(){
   const root = $("placesList");
+  if(!root) return;
   root.innerHTML = "";
   if(!STATE.places.length){
     root.innerHTML = `<p class="muted">Nessun posto.</p>`;
@@ -550,6 +547,7 @@ function renderPlacesAdmin(){
 
 function renderReviewsAdmin(){
   const root = $("reviewsList");
+  if(!root) return;
   root.innerHTML = "";
   if(!STATE.reviews.length){
     root.innerHTML = `<p class="muted">Nessuna recensione.</p>`;
@@ -581,44 +579,44 @@ function openEditor(mode, id){
   EDIT_MODE = mode;
   EDIT_ID = id;
 
-  $("editor").classList.remove("hidden");
-
-  // mappa editor (solo quando editor è visibile)
+  $("editor")?.classList.remove("hidden");
   ensureEditorMap();
 
   const isReview = mode === "reviews";
-  $("edRatingWrap").classList.toggle("hidden", !isReview);
-  $("edTitle").textContent = isReview ? "Editor • Recensione" : "Editor • Posto";
+  $("edRatingWrap")?.classList.toggle("hidden", !isReview);
+  if ($("edTitle")) $("edTitle").textContent = isReview ? "Editor • Recensione" : "Editor • Posto";
 
-  const item = id ? (isReview ? STATE.reviews.find(x=>x.id===id) : STATE.places.find(x=>x.id===id)) : null;
+  const item = id
+    ? (isReview ? STATE.reviews.find(x=>x.id===id) : STATE.places.find(x=>x.id===id))
+    : null;
 
   if(isReview){
-    $("edName").value = item?.title || "";
-    $("edCat").value  = item?.place || "";
-    $("edDesc").value = item?.text || "";
-    $("edLat").value  = (isNum(item?.lat) ? item.lat : "");
-    $("edLng").value  = (isNum(item?.lng) ? item.lng : "");
-    $("edRating").value = item?.rating ?? 5; // <-- FIX: niente "#"
+    if ($("edName")) $("edName").value = item?.title || "";
+    if ($("edCat")) $("edCat").value  = item?.place || "";
+    if ($("edDesc")) $("edDesc").value = item?.text || "";
+    if ($("edLat")) $("edLat").value  = (isNum(item?.lat) ? item.lat : "");
+    if ($("edLng")) $("edLng").value  = (isNum(item?.lng) ? item.lng : "");
+    if ($("edRating")) $("edRating").value = item?.rating ?? 5;
   } else {
-    $("edName").value = item?.name || "";
-    $("edCat").value  = item?.category || "";
-    $("edDesc").value = item?.description || "";
-    $("edLat").value  = (isNum(item?.lat) ? item.lat : "");
-    $("edLng").value  = (isNum(item?.lng) ? item.lng : "");
+    if ($("edName")) $("edName").value = item?.name || "";
+    if ($("edCat")) $("edCat").value  = item?.category || "";
+    if ($("edDesc")) $("edDesc").value = item?.description || "";
+    if ($("edLat")) $("edLat").value  = (isNum(item?.lat) ? item.lat : "");
+    if ($("edLng")) $("edLng").value  = (isNum(item?.lng) ? item.lng : "");
   }
 
-  const lat = Number($("edLat").value);
-  const lng = Number($("edLng").value);
+  const lat = Number($("edLat")?.value);
+  const lng = Number($("edLng")?.value);
   renderEditorPin(Number.isFinite(lat)?lat:null, Number.isFinite(lng)?lng:null);
 
-  $("edStatus").textContent = id ? "Modifica elemento esistente." : "Nuovo elemento.";
+  if ($("edStatus")) $("edStatus").textContent = id ? "Modifica elemento esistente." : "Nuovo elemento.";
 }
 
 function closeEditor(){
-  $("editor").classList.add("hidden");
+  $("editor")?.classList.add("hidden");
   PICK_MODE = false;
-  $("btnPickOnMap").textContent = "📍 Seleziona su mappa";
-  $("edStatus").textContent = "";
+  if ($("btnPickOnMap")) $("btnPickOnMap").textContent = "📍 Seleziona su mappa";
+  if ($("edStatus")) $("edStatus").textContent = "";
   EDIT_MODE = null;
   EDIT_ID = null;
 }
@@ -627,22 +625,21 @@ function saveEditorItem(){
   if(!EDIT_MODE) return;
 
   const isReview = EDIT_MODE === "reviews";
-
-  const lat = $("edLat").value ? Number($("edLat").value) : null;
-  const lng = $("edLng").value ? Number($("edLng").value) : null;
+  const lat = ($("edLat")?.value) ? Number($("edLat").value) : null;
+  const lng = ($("edLng")?.value) ? Number($("edLng").value) : null;
 
   if(isReview){
     const obj = {
       id: EDIT_ID || uid(),
-      title: $("edName").value.trim(),
-      place: $("edCat").value.trim(),
-      rating: Math.max(1, Math.min(5, Number($("edRating").value || 5))),
-      text: $("edDesc").value.trim(),
+      title: ($("edName")?.value || "").trim(),
+      place: ($("edCat")?.value || "").trim(),
+      rating: Math.max(1, Math.min(5, Number(($("edRating")?.value || 5)))),
+      text: ($("edDesc")?.value || "").trim(),
       lat: Number.isFinite(lat) ? lat : null,
       lng: Number.isFinite(lng) ? lng : null
     };
     if(!obj.title || !obj.text){
-      $("edStatus").textContent = "Titolo e testo sono obbligatori.";
+      if ($("edStatus")) $("edStatus").textContent = "Titolo e testo sono obbligatori.";
       return;
     }
 
@@ -653,20 +650,19 @@ function saveEditorItem(){
       STATE.reviews.unshift(obj);
       EDIT_ID = obj.id;
     }
-    $("edStatus").textContent = "Salvato in memoria ✅ (ora Pubblica su GitHub)";
+    if ($("edStatus")) $("edStatus").textContent = "Salvato in memoria ✅ (ora Pubblica su GitHub)";
     renderReviewsAdmin();
-
   } else {
     const obj = {
       id: EDIT_ID || uid(),
-      name: $("edName").value.trim(),
-      category: $("edCat").value.trim() || "posto",
-      description: $("edDesc").value.trim(),
+      name: ($("edName")?.value || "").trim(),
+      category: (($("edCat")?.value || "").trim() || "posto"),
+      description: ($("edDesc")?.value || "").trim(),
       lat: Number.isFinite(lat) ? lat : null,
       lng: Number.isFinite(lng) ? lng : null
     };
     if(!obj.name || !obj.description){
-      $("edStatus").textContent = "Nome e descrizione sono obbligatori.";
+      if ($("edStatus")) $("edStatus").textContent = "Nome e descrizione sono obbligatori.";
       return;
     }
 
@@ -677,7 +673,7 @@ function saveEditorItem(){
       STATE.places.unshift(obj);
       EDIT_ID = obj.id;
     }
-    $("edStatus").textContent = "Salvato in memoria ✅ (ora Pubblica su GitHub)";
+    if ($("edStatus")) $("edStatus").textContent = "Salvato in memoria ✅ (ora Pubblica su GitHub)";
     renderPlacesAdmin();
   }
 }
@@ -685,7 +681,6 @@ function saveEditorItem(){
 function deleteEditorItem(){
   if(!EDIT_MODE || !EDIT_ID) return;
   const isReview = EDIT_MODE === "reviews";
-
   if(!confirm("Eliminare questo elemento?")) return;
 
   if(isReview){
@@ -697,26 +692,26 @@ function deleteEditorItem(){
   }
 
   closeEditor();
-  $("ghStatus").textContent = "Eliminato in memoria ✅ (ora Pubblica su GitHub)";
+  if ($("ghStatus")) $("ghStatus").textContent = "Eliminato in memoria ✅ (ora Pubblica su GitHub)";
 }
 
 async function publishToGithub(){
   if(!STATE.ghToken || !STATE.ghRepo){
-    $("ghStatus").textContent = "Inserisci Token e Repo.";
+    if ($("ghStatus")) $("ghStatus").textContent = "Inserisci Token e Repo.";
     return;
   }
 
   // se manca sha, ricarica prima (evita 409)
   if(!STATE.placesSha || !STATE.reviewsSha){
-    $("ghStatus").textContent = "Ricarico Posti/Recensioni per sicurezza...";
+    if ($("ghStatus")) $("ghStatus").textContent = "Ricarico Posti/Recensioni per sicurezza...";
     await loadContentFromGithub();
     if(!STATE.placesSha || !STATE.reviewsSha){
-      $("ghStatus").textContent = "Prima fai: Carica Posti/Recensioni.";
+      if ($("ghStatus")) $("ghStatus").textContent = "Prima fai: Carica Posti/Recensioni.";
       return;
     }
   }
 
-  $("ghStatus").textContent = "Pubblico su GitHub...";
+  if ($("ghStatus")) $("ghStatus").textContent = "Pubblico su GitHub...";
   try{
     const placesStr = JSON.stringify(STATE.places, null, 2);
     const reviewsStr = JSON.stringify(STATE.reviews, null, 2);
@@ -727,10 +722,10 @@ async function publishToGithub(){
     STATE.placesSha = p.content.sha;
     STATE.reviewsSha = r.content.sha;
 
-    $("ghStatus").textContent = "Pubblicato ✅ (attendi GitHub Pages 30–60 sec)";
+    if ($("ghStatus")) $("ghStatus").textContent = "Pubblicato ✅ (attendi GitHub Pages 30–60 sec)";
   } catch(e){
     console.warn(e);
-    $("ghStatus").textContent = "Errore publish: controlla permessi token/repo.";
+    if ($("ghStatus")) $("ghStatus").textContent = "Errore publish: controlla permessi token/repo.";
   }
 }
 
