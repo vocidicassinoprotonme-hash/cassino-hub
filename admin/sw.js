@@ -1,4 +1,4 @@
-const CACHE = "admin-ch-v1";
+const CACHE = "admin-ch-v2";
 const ASSETS = [
   "./admin.html",
   "./admin.js",
