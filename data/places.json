@@ -1,5 +1,13 @@
 [
   {
+    "id": "1c5f829e-25fd-4aca-ba1e-79f772ffe541",
+    "name": "Cimitero Polacco di Montecassino",
+    "category": "cultura",
+    "description": "In occasione del sesto anniversario dell’attacco Tedesco alla Polonia, il 1 settembre 1945 un gran viavai caratterizzò la zona vicino al Monastero di Montecassino. Era il giorno dell’inaugurazione del mausoleo dedicato ai cavalieri caduti durante l’ultima battaglia di Cassino. Il cimitero però era già lì. Dopo un lungo percorso tra il verde della piccola valle, si arriva all’altezza dell’entrata protetta da 2 aquile in pietra scolpite in marmo. Le due imponenti aquile in travertino, scolpite con maestria dall’artista italiano Duilio Cambellotti, proteggono l’accesso e sembrano sorvegliare da lontano anche il monastero di Montecassino",
+    "lat": 41.494157,
+    "lng": 13.805748
+  },
+  {
     "id": "67ee4e1a-8853-4985-92d6-c2a401de5c27",
     "name": "Sacrario militare germanico",
     "category": "cultura",
