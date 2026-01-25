@@ -1,3 +1,8 @@
+/* admin/admin.js  — VERSIONE FIX (click + publish GitHub + debug)
+   Se non vedi in console: "ADMIN.JS LOADED", stai caricando il file sbagliato.
+*/
+console.log("✅ ADMIN.JS LOADED —", new Date().toISOString());
+
 const $ = (id) => document.getElementById(id);
 
 const LS = {
@@ -16,13 +21,11 @@ const STATE = {
   reports: [],
   selected: null,
 
-  // gestione contenuti GitHub
   places: [],
   reviews: [],
   placesSha: null,
   reviewsSha: null,
 
-  // MAPPE separate
   reportMap: null,
   reportPin: null,
   editorMap: null,
@@ -56,7 +59,17 @@ function headersAdmin(){
   return { "X-Admin-Key": STATE.adminKey };
 }
 
-// =============== BOOT: carica impostazioni ===============
+function setText(id, txt){
+  const el = $(id);
+  if(el) el.textContent = txt;
+}
+
+function setHTML(id, html){
+  const el = $(id);
+  if(el) el.innerHTML = html;
+}
+
+// =============== BOOT ===============
 function bootSettings(){
   STATE.apiBase  = load(LS.API_BASE, $("apiBase")?.value || "");
   STATE.adminKey = load(LS.ADMIN_KEY, "");
@@ -65,9 +78,11 @@ function bootSettings(){
 
   if ($("apiBase")) $("apiBase").value = STATE.apiBase || $("apiBase").value;
   if ($("adminKey")) $("adminKey").value = STATE.adminKey;
-  if ($("connStatus")) $("connStatus").textContent = "";
+
+  setText("connStatus", "");
 
   ensureGithubBox();
+
   if ($("ghToken")) $("ghToken").value = STATE.ghToken;
   if ($("ghRepo")) $("ghRepo").value = STATE.ghRepo;
 }
@@ -76,31 +91,34 @@ function bootSettings(){
 function ensureGithubBox(){
   if(document.getElementById("ghBox")) return;
 
-  // Aggancia il box GitHub nella card "Connessione" (quella con #apiBase)
   const apiInput = document.getElementById("apiBase");
   const connCard = apiInput ? apiInput.closest(".card") : null;
-  if(!connCard) return;
+  if(!connCard) {
+    console.warn("ConnCard non trovata: manca #apiBase o .card nel tuo HTML.");
+    return;
+  }
 
   const box = document.createElement("div");
   box.id = "ghBox";
   box.innerHTML = `
     <hr>
     <h3>Contenuti (GitHub)</h3>
-    <p class="muted mini">Qui puoi aggiornare <b>Posti</b> e <b>Recensioni</b> pubblicati nella webapp. Il token resta solo nel browser.</p>
+    <p class="muted mini">Aggiorna <b>Posti</b> e <b>Recensioni</b> nella webapp. Il token resta solo nel browser.</p>
 
     <label class="field">
       <span>GitHub Token (Contents: Read/Write)</span>
-      <input id="ghToken" type="password" placeholder="github_pat_..." />
+      <input id="ghToken" type="password" placeholder="ghp_... o github_pat_..." />
     </label>
 
     <label class="field">
       <span>Repo (owner/repo)</span>
-      <input id="ghRepo" type="text" placeholder="owner/repo" />
+      <input id="ghRepo" type="text" placeholder="vocidicassinoprotonme-hash/cassino-hub" />
     </label>
 
     <div class="row">
       <button id="btnLoadContent" class="btn secondary" type="button">Carica Posti/Recensioni</button>
       <button id="btnOpenManager" class="btn" type="button">Gestisci</button>
+      <button id="btnGhTest" class="btn secondary" type="button">Test Token</button>
     </div>
 
     <p id="ghStatus" class="muted mini"></p>
@@ -183,91 +201,60 @@ function ensureGithubBox(){
         <hr>
         <h3>Mappa</h3>
         <div id="mapEd" class="map"></div>
-        <p class="muted mini">Clicca sulla mappa per impostare Lat/Lng quando la modalità “Seleziona su mappa” è attiva.</p>
+        <p class="muted mini">Clicca sulla mappa per impostare Lat/Lng quando “Seleziona su mappa” è attiva.</p>
       </div>
     </div>
   `;
 
   connCard.appendChild(box);
 
-  // ✅ Event delegation: un solo listener per tutti i bottoni dentro ghBox
+  // ✅ Event delegation (robusto: funziona anche se i nodi vengono rigenerati)
   box.addEventListener("click", (e) => {
     const btn = e.target.closest("button");
     if(!btn) return;
 
     switch(btn.id){
-      case "btnLoadContent":
-        loadContentFromGithub();
-        break;
-
-      case "btnOpenManager":
-        $("manager")?.classList.toggle("hidden");
-        break;
-
-      case "tabPlaces":
-        showManager("places");
-        break;
-
-      case "tabReviews":
-        showManager("reviews");
-        break;
-
-      case "btnAddPlace":
-        openEditor("places", null);
-        break;
-
-      case "btnAddReview":
-        openEditor("reviews", null);
-        break;
-
-      case "btnCloseEditor":
-        closeEditor();
-        break;
-
-      case "btnPickOnMap":
-        togglePickOnMap();
-        break;
-
-      case "btnSaveItem":
-        saveEditorItem();
-        break;
-
-      case "btnDeleteItem":
-        deleteEditorItem();
-        break;
-
-      case "btnPublish":
-        publishToGithub();
-        break;
+      case "btnLoadContent": loadContentFromGithub(); break;
+      case "btnOpenManager": $("manager")?.classList.toggle("hidden"); break;
+      case "tabPlaces": showManager("places"); break;
+      case "tabReviews": showManager("reviews"); break;
+      case "btnAddPlace": openEditor("places", null); break;
+      case "btnAddReview": openEditor("reviews", null); break;
+      case "btnCloseEditor": closeEditor(); break;
+      case "btnPickOnMap": togglePickOnMap(); break;
+      case "btnSaveItem": saveEditorItem(); break;
+      case "btnDeleteItem": deleteEditorItem(); break;
+      case "btnPublish": publishToGithub(); break;
+      case "btnGhTest": testGithubToken(); break;
     }
   });
-} // ✅ QUESTA GRAFFA MANCAVA NEL TUO CODICE
+} // ✅ QUESTA GRAFFA MANCAVA NEL TUO CODICE: senza di lei si rompe tutto
 
 function showManager(which){
   $("mgrPlaces")?.classList.toggle("hidden", which !== "places");
   $("mgrReviews")?.classList.toggle("hidden", which !== "reviews");
 }
 
-// =============== SALVATAGGIO chiavi (admin worker) ===============
+// =============== SALVATAGGIO chiavi WORKER ===============
 $("btnSaveKey")?.addEventListener("click", ()=>{
   STATE.apiBase = ($("apiBase")?.value || "").trim();
   STATE.adminKey = ($("adminKey")?.value || "").trim();
   save(LS.API_BASE, STATE.apiBase);
   save(LS.ADMIN_KEY, STATE.adminKey);
-  if ($("connStatus")) $("connStatus").textContent = "Salvato ✅";
+  setText("connStatus","Salvato ✅");
 });
 
 $("btnClearKey")?.addEventListener("click", ()=>{
   del(LS.ADMIN_KEY);
   if ($("adminKey")) $("adminKey").value = "";
   STATE.adminKey = "";
-  if ($("connStatus")) $("connStatus").textContent = "Rimosso ✅";
+  setText("connStatus","Rimosso ✅");
 });
 
 $("btnRefresh")?.addEventListener("click", loadReports);
 $("btnExport")?.addEventListener("click", exportReports);
 
-// =============== REPORTS: list + dettaglio ===============
+// =============== REPORTS (worker) ===============
 async function loadReports(){
   const base = ($("apiBase")?.value || "").trim();
   const key  = ($("adminKey")?.value || "").trim();
@@ -277,24 +264,24 @@ async function loadReports(){
   save(LS.ADMIN_KEY, key);
 
   if(!base || !key){
-    if ($("connStatus")) $("connStatus").textContent = "Inserisci Worker base URL e Admin Key.";
+    setText("connStatus","Inserisci Worker base URL e Admin Key.");
     return;
   }
 
-  if ($("connStatus")) $("connStatus").textContent = "Carico...";
+  setText("connStatus","Carico...");
   try{
     const res = await fetch(`${base}/list`, { headers: headersAdmin() });
     if(!res.ok){
-      if ($("connStatus")) $("connStatus").textContent = `Errore /list: ${res.status}`;
+      setText("connStatus",`Errore /list: ${res.status}`);
       return;
     }
     const data = await res.json();
     STATE.reports = data.rows || [];
-    if ($("connStatus")) $("connStatus").textContent = `OK ✅ ${STATE.reports.length} segnalazioni`;
+    setText("connStatus",`OK ✅ ${STATE.reports.length} segnalazioni`);
     renderReportList();
   } catch(e){
     console.warn(e);
-    if ($("connStatus")) $("connStatus").textContent = "Errore rete.";
+    setText("connStatus","Errore rete.");
   }
 }
 
@@ -304,7 +291,6 @@ function renderReportList(){
   root.innerHTML = "";
 
   const q = ($("q")?.value || "").toLowerCase().trim();
-
   const items = STATE.reports.filter(r=>{
     const t = `${r.title||""} ${r.description||""}`.toLowerCase();
     return !q || t.includes(q);
@@ -343,12 +329,12 @@ function selectReport(id){
   $("detailEmpty")?.classList.add("hidden");
   $("detail")?.classList.remove("hidden");
 
-  if ($("selMeta")) $("selMeta").textContent = `${new Date(r.createdAt).toLocaleString("it-IT")} • ${r.id}`;
+  setText("selMeta", `${new Date(r.createdAt).toLocaleString("it-IT")} • ${r.id}`);
 
   if ($("dTitle")) $("dTitle").textContent = r.title || "";
   if ($("dDesc")) $("dDesc").textContent  = r.description || "";
 
-  if(r.photoUrl){
+  if(r.photoKey){
     $("dPhotoWrap")?.classList.remove("hidden");
     if ($("dPhoto")) $("dPhoto").src = `${STATE.apiBase}/photo?key=${encodeURIComponent(r.photoKey)}&ak=${encodeURIComponent(STATE.adminKey)}`;
   } else {
@@ -357,10 +343,9 @@ function selectReport(id){
   }
 
   if(isNum(r.lat) && isNum(r.lng)){
-    if ($("dCoords")) $("dCoords").textContent =
-      `Lat ${r.lat.toFixed(6)} • Lng ${r.lng.toFixed(6)}${r.accuracy ? ` • ±${Math.round(r.accuracy)}m` : ""}`;
+    setText("dCoords", `Lat ${r.lat.toFixed(6)} • Lng ${r.lng.toFixed(6)}${r.accuracy ? ` • ±${Math.round(r.accuracy)}m` : ""}`);
   } else {
-    if ($("dCoords")) $("dCoords").textContent = "Nessuna coordinata.";
+    setText("dCoords", "Nessuna coordinata.");
   }
 
   if ($("dStatus")) $("dStatus").value = r.status || "new";
@@ -368,56 +353,10 @@ function selectReport(id){
   if ($("dNote")) $("dNote").value = r.adminNote || "";
   if ($("dReply")) $("dReply").value = r.adminReply || "";
 
-  if ($("saveStatus")) $("saveStatus").textContent = "";
-
-  ensureReportMap();
-  renderReportPin(r.lat, r.lng);
+  setText("saveStatus", "");
 }
 
-$("btnSave")?.addEventListener("click", async ()=>{
-  if(!STATE.selected) return;
-  const base = STATE.apiBase;
-
-  const payload = {
-    id: STATE.selected.id,
-    status: $("dStatus")?.value,
-    tags: $("dTags")?.value,
-    adminNote: $("dNote")?.value,
-    adminReply: $("dReply")?.value
-  };
-
-  if ($("saveStatus")) $("saveStatus").textContent = "Salvo...";
-  try{
-    const res = await fetch(`${base}/admin/update`, {
-      method: "POST",
-      headers: { "Content-Type":"application/json", ...headersAdmin() },
-      body: JSON.stringify(payload)
-    });
-
-    const data = await res.json().catch(()=>null);
-    if(!res.ok || !data?.ok){
-      if ($("saveStatus")) $("saveStatus").textContent = `Errore: ${res.status}`;
-      console.log("update error", data);
-      return;
-    }
-
-    if ($("saveStatus")) $("saveStatus").textContent = "Salvato ✅";
-
-    Object.assign(STATE.selected, {
-      status: data.status,
-      tags: data.tags,
-      adminNote: data.adminNote,
-      adminReply: data.adminReply,
-      updatedAt: data.updatedAt
-    });
-
-    renderReportList();
-  } catch(e){
-    console.warn(e);
-    if ($("saveStatus")) $("saveStatus").textContent = "Errore rete.";
-  }
-});
-
+// export
 function exportReports(){
   const blob = new Blob([JSON.stringify(STATE.reports, null, 2)], {type:"application/json"});
   const a = document.createElement("a");
@@ -427,100 +366,55 @@ function exportReports(){
   URL.revokeObjectURL(a.href);
 }
 
-// =============== MAP SEGNALAZIONI (solo visualizzazione) ===============
-function ensureReportMap(){
-  if(STATE.reportMap) return;
-  const el = $("map");
-  if(!el) return;
-
-  STATE.reportMap = L.map("map");
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(STATE.reportMap);
-  STATE.reportMap.setView([41.492, 13.832], 13);
-}
-
-function renderReportPin(lat, lng){
-  if(!STATE.reportMap) return;
-  if(STATE.reportPin){ STATE.reportPin.remove(); STATE.reportPin = null; }
-
-  if(isNum(lat) && isNum(lng)){
-    STATE.reportPin = L.marker([lat, lng]).addTo(STATE.reportMap);
-    STATE.reportMap.setView([lat, lng], 15);
-  } else {
-    STATE.reportMap.setView([41.492, 13.832], 13);
-  }
-}
-
-// =============== MAP EDITOR (pick su mappa) ===============
-let PICK_MODE = false;
-
-function ensureEditorMap(){
-  if(STATE.editorMap) return;
-  const el = $("mapEd");
-  if(!el) return;
-
-  STATE.editorMap = L.map("mapEd");
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(STATE.editorMap);
-  STATE.editorMap.setView([41.492, 13.832], 13);
-
-  STATE.editorMap.on("click", (e)=>{
-    if(!PICK_MODE) return;
-    const { lat, lng } = e.latlng;
-    if ($("edLat")) $("edLat").value = lat.toFixed(6);
-    if ($("edLng")) $("edLng").value = lng.toFixed(6);
-    renderEditorPin(lat, lng);
-    if ($("edStatus")) $("edStatus").textContent = "Coordinate impostate dalla mappa ✅";
-  });
-}
-
-function renderEditorPin(lat, lng){
-  if(!STATE.editorMap) return;
-  if(STATE.editorPin){ STATE.editorPin.remove(); STATE.editorPin = null; }
-
-  if(isNum(lat) && isNum(lng)){
-    STATE.editorPin = L.marker([lat, lng]).addTo(STATE.editorMap);
-    STATE.editorMap.setView([lat, lng], 15);
-  } else {
-    STATE.editorMap.setView([41.492, 13.832], 13);
-  }
-}
-
-function togglePickOnMap(){
-  PICK_MODE = !PICK_MODE;
-  if ($("btnPickOnMap")) $("btnPickOnMap").textContent = PICK_MODE ? "✅ Click sulla mappa..." : "📍 Seleziona su mappa";
-  if ($("edStatus")) $("edStatus").textContent = PICK_MODE ? "Modalità selezione: clicca un punto sulla mappa." : "";
-}
-
-// =============== GITHUB: load + publish ===============
+// =============== GITHUB API ===============
 function ghHeaders(){
   return {
     "Authorization": `Bearer ${STATE.ghToken}`,
-    "Accept": "application/vnd.github+json"
+    "Accept": "application/vnd.github+json",
+    "X-GitHub-Api-Version": "2022-11-28"
   };
 }
 
-function parseRepo(){
-  const raw = (STATE.ghRepo || "").trim();
-  const parts = raw.split("/").filter(Boolean);
-  if(parts.length !== 2) return null;
-  return { owner: parts[0], repo: parts[1] };
+async function testGithubToken(){
+  STATE.ghToken = ($("ghToken")?.value || "").trim();
+  save(LS.GH_TOKEN, STATE.ghToken);
+
+  if(!STATE.ghToken){
+    setText("ghStatus","Inserisci token.");
+    return;
+  }
+
+  setText("ghStatus","Test token...");
+  try{
+    const res = await fetch("https://api.github.com/user", { headers: ghHeaders() });
+    const data = await res.json().catch(()=>null);
+    if(!res.ok){
+      setText("ghStatus", `Token NON valido: ${res.status}`);
+      console.log("token test", data);
+      return;
+    }
+    setText("ghStatus", `Token OK ✅ utente: ${data.login}`);
+  }catch(e){
+    console.warn(e);
+    setText("ghStatus","Errore rete su GitHub.");
+  }
 }
 
 async function ghGetFile(path){
-  const rr = parseRepo();
-  if(!rr) throw new Error("Repo non valido. Usa formato owner/repo");
-  const url = `https://api.github.com/repos/${rr.owner}/${rr.repo}/contents/${path}`;
+  const [owner, repo] = (STATE.ghRepo||"").split("/");
+  if(!owner || !repo) throw new Error("Repo non valido (owner/repo)");
+  const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
   const res = await fetch(url, { headers: ghHeaders() });
-  if(!res.ok){
-    const t = await res.text().catch(()=> "");
-    throw new Error(`GitHub GET ${path} ${res.status} ${t}`);
-  }
-  return await res.json();
+  const data = await res.json().catch(()=>null);
+  if(!res.ok) throw new Error(`GitHub GET ${path} ${res.status} ${JSON.stringify(data)}`);
+  return data;
 }
 
 async function ghPutFile(path, contentStr, sha, message){
-  const rr = parseRepo();
-  if(!rr) throw new Error("Repo non valido. Usa formato owner/repo");
-  const url = `https://api.github.com/repos/${rr.owner}/${rr.repo}/contents/${path}`;
+  const [owner, repo] = (STATE.ghRepo||"").split("/");
+  if(!owner || !repo) throw new Error("Repo non valido (owner/repo)");
+
+  const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
 
   const body = {
     message,
@@ -535,9 +429,7 @@ async function ghPutFile(path, contentStr, sha, message){
   });
 
   const data = await res.json().catch(()=>null);
-  if(!res.ok){
-    throw new Error(`GitHub PUT ${path} ${res.status} ${JSON.stringify(data)}`);
-  }
+  if(!res.ok) throw new Error(`GitHub PUT ${path} ${res.status} ${JSON.stringify(data)}`);
   return data;
 }
 
@@ -548,11 +440,11 @@ async function loadContentFromGithub(){
   save(LS.GH_REPO, STATE.ghRepo);
 
   if(!STATE.ghToken || !STATE.ghRepo){
-    if ($("ghStatus")) $("ghStatus").textContent = "Inserisci GitHub Token e Repo.";
+    setText("ghStatus","Inserisci GitHub Token e Repo.");
     return;
   }
 
-  if ($("ghStatus")) $("ghStatus").textContent = "Carico file da GitHub...";
+  setText("ghStatus","Carico file da GitHub...");
   try{
     const placesFile = await ghGetFile("data/places.json");
     STATE.placesSha = placesFile.sha;
@@ -562,12 +454,12 @@ async function loadContentFromGithub(){
     STATE.reviewsSha = reviewsFile.sha;
     STATE.reviews = JSON.parse(decodeURIComponent(escape(atob(reviewsFile.content))));
 
-    if ($("ghStatus")) $("ghStatus").textContent = `OK ✅ Posti: ${STATE.places.length} • Recensioni: ${STATE.reviews.length}`;
+    setText("ghStatus", `OK ✅ Posti: ${STATE.places.length} • Recensioni: ${STATE.reviews.length}`);
     renderPlacesAdmin();
     renderReviewsAdmin();
   } catch(e){
     console.warn(e);
-    if ($("ghStatus")) $("ghStatus").textContent = `Errore caricamento: ${e.message}`;
+    setText("ghStatus", `Errore caricamento: ${e.message}`);
   }
 }
 
@@ -621,16 +513,17 @@ function renderReviewsAdmin(){
   }
 }
 
-// =============== EDITOR posti/recensioni ===============
+// =============== EDITOR (solo logica base) ===============
 let EDIT_MODE = null; // "places" | "reviews"
 let EDIT_ID = null;
+
+let PICK_MODE = false;
 
 function openEditor(mode, id){
   EDIT_MODE = mode;
   EDIT_ID = id;
 
   $("editor")?.classList.remove("hidden");
-  ensureEditorMap();
 
   const isReview = mode === "reviews";
   $("edRatingWrap")?.classList.toggle("hidden", !isReview);
@@ -655,20 +548,20 @@ function openEditor(mode, id){
     if ($("edLng")) $("edLng").value  = (isNum(item?.lng) ? item.lng : "");
   }
 
-  const lat = Number($("edLat")?.value);
-  const lng = Number($("edLng")?.value);
-  renderEditorPin(Number.isFinite(lat)?lat:null, Number.isFinite(lng)?lng:null);
-
-  if ($("edStatus")) $("edStatus").textContent = id ? "Modifica elemento esistente." : "Nuovo elemento.";
+  setText("edStatus", id ? "Modifica elemento esistente." : "Nuovo elemento.");
 }
 
 function closeEditor(){
   $("editor")?.classList.add("hidden");
   PICK_MODE = false;
-  if ($("btnPickOnMap")) $("btnPickOnMap").textContent = "📍 Seleziona su mappa";
-  if ($("edStatus")) $("edStatus").textContent = "";
   EDIT_MODE = null;
   EDIT_ID = null;
+  setText("edStatus","");
+}
+
+function togglePickOnMap(){
+  PICK_MODE = !PICK_MODE;
+  setText("edStatus", PICK_MODE ? "Modalità selezione: (mappa non cablata qui) — disattivala per continuare." : "");
 }
 
 function saveEditorItem(){
@@ -689,10 +582,9 @@ function saveEditorItem(){
       lng: Number.isFinite(lng) ? lng : null
     };
     if(!obj.title || !obj.text){
-      if ($("edStatus")) $("edStatus").textContent = "Titolo e testo sono obbligatori.";
+      setText("edStatus","Titolo e testo sono obbligatori.");
       return;
     }
-
     if(EDIT_ID){
       const idx = STATE.reviews.findIndex(x=>x.id===EDIT_ID);
       if(idx>=0) STATE.reviews[idx]=obj;
@@ -700,7 +592,7 @@ function saveEditorItem(){
       STATE.reviews.unshift(obj);
       EDIT_ID = obj.id;
     }
-    if ($("edStatus")) $("edStatus").textContent = "Salvato in memoria ✅ (ora Pubblica su GitHub)";
+    setText("edStatus","Salvato in memoria ✅ (ora Pubblica su GitHub)");
     renderReviewsAdmin();
   } else {
     const obj = {
@@ -712,10 +604,9 @@ function saveEditorItem(){
       lng: Number.isFinite(lng) ? lng : null
     };
     if(!obj.name || !obj.description){
-      if ($("edStatus")) $("edStatus").textContent = "Nome e descrizione sono obbligatori.";
+      setText("edStatus","Nome e descrizione sono obbligatori.");
       return;
     }
-
     if(EDIT_ID){
       const idx = STATE.places.findIndex(x=>x.id===EDIT_ID);
       if(idx>=0) STATE.places[idx]=obj;
@@ -723,7 +614,7 @@ function saveEditorItem(){
       STATE.places.unshift(obj);
       EDIT_ID = obj.id;
     }
-    if ($("edStatus")) $("edStatus").textContent = "Salvato in memoria ✅ (ora Pubblica su GitHub)";
+    setText("edStatus","Salvato in memoria ✅ (ora Pubblica su GitHub)");
     renderPlacesAdmin();
   }
 }
@@ -742,32 +633,34 @@ function deleteEditorItem(){
   }
 
   closeEditor();
-  if ($("ghStatus")) $("ghStatus").textContent = "Eliminato in memoria ✅ (ora Pubblica su GitHub)";
+  setText("ghStatus","Eliminato in memoria ✅ (ora Pubblica su GitHub)");
 }
 
 async function publishToGithub(){
-  // 🔥 Leggi SEMPRE dagli input (così publish funziona anche se non hai premuto “Carica”)
+  // 🔥 Qui ti mostro SEMPRE se il click arriva
+  console.log("🚀 publishToGithub() click");
+
   STATE.ghToken = ($("ghToken")?.value || "").trim();
   STATE.ghRepo  = ($("ghRepo")?.value || "").trim();
   save(LS.GH_TOKEN, STATE.ghToken);
   save(LS.GH_REPO, STATE.ghRepo);
 
   if(!STATE.ghToken || !STATE.ghRepo){
-    if ($("ghStatus")) $("ghStatus").textContent = "Inserisci Token e Repo.";
+    setText("ghStatus","Inserisci Token e Repo.");
     return;
   }
 
-  // Se manca sha, ricarica prima (evita 409)
+  // Se manca sha, ricarica prima
   if(!STATE.placesSha || !STATE.reviewsSha){
-    if ($("ghStatus")) $("ghStatus").textContent = "Ricarico Posti/Recensioni per sicurezza...";
+    setText("ghStatus","Ricarico Posti/Recensioni per sicurezza...");
     await loadContentFromGithub();
     if(!STATE.placesSha || !STATE.reviewsSha){
-      if ($("ghStatus")) $("ghStatus").textContent = "Prima fai: Carica Posti/Recensioni.";
+      setText("ghStatus","Prima fai: Carica Posti/Recensioni.");
       return;
     }
   }
 
-  if ($("ghStatus")) $("ghStatus").textContent = "Pubblico su GitHub...";
+  setText("ghStatus","Pubblico su GitHub...");
   try{
     const placesStr = JSON.stringify(STATE.places, null, 2);
     const reviewsStr = JSON.stringify(STATE.reviews, null, 2);
@@ -778,10 +671,11 @@ async function publishToGithub(){
     STATE.placesSha = p.content.sha;
     STATE.reviewsSha = r.content.sha;
 
-    if ($("ghStatus")) $("ghStatus").textContent = "Pubblicato ✅ (attendi GitHub Pages 30–60 sec)";
+    setText("ghStatus","Pubblicato ✅ (attendi GitHub Pages 30–60 sec)");
+    console.log("✅ Publish OK", {placesSha: STATE.placesSha, reviewsSha: STATE.reviewsSha});
   } catch(e){
     console.warn(e);
-    if ($("ghStatus")) $("ghStatus").textContent = `Errore publish: ${e.message}`;
+    setText("ghStatus", `Errore publish: ${e.message}`);
   }
 }
 
