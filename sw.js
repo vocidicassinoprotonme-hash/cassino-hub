@@ -1,4 +1,4 @@
-const CACHE = "ch-cache-v1";
+const CACHE = "ch-cache-v2";
 const ASSETS = ["./","./index.html","./styles.css","./app.js","./manifest.webmanifest"];
 
 self.addEventListener("install", (e)=>{
@@ -13,3 +13,4 @@ self.addEventListener("fetch", (e)=>{
     }).catch(()=> r))
   );
 });
+
