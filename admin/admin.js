@@ -171,10 +171,17 @@ function ensureGithubBox(){
         </div>
 
         <div class="row">
-          <button id="btnPickOnMap" class="btn secondary">📍 Seleziona su mappa</button>
-          <button id="btnSaveItem" class="btn">💾 Salva</button>
-          <button id="btnDeleteItem" class="btn danger">Elimina</button>
-          <button id="btnPublish" class="btn">🚀 Pubblica su GitHub</button>
+          <button type="button" id="btnCloseEditor" class="btn danger">Chiudi</button>
+          <button type="button" id="btnLoadContent" class="btn secondary">Carica Posti/Recensioni</button>
+          <button type="button" id="btnOpenManager" class="btn">Gestisci</button>
+          <button type="button" id="tabPlaces" class="btn secondary">Posti</button>
+          <button type="button" id="tabReviews" class="btn secondary">Recensioni</button>
+          <button type="button" id="btnAddPlace" class="btn">+ Aggiungi</button>
+          <button type="button" id="btnAddReview" class="btn">+ Aggiungi</button>
+          <button type="button" id="btnPickOnMap" class="btn secondary">📍 Seleziona su mappa</button>
+          <button type="button" id="btnSaveItem" class="btn">💾 Salva</button>
+          <button type="button" id="btnDeleteItem" class="btn danger">Elimina</button>
+          <button type="button" id="btnPublish" class="btn">🚀 Pubblica su GitHub</button>
         </div>
 
         <p id="edStatus" class="muted mini"></p>
