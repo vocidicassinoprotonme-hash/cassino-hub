@@ -1,5 +1,13 @@
 [
   {
+    "id": "1745610a-6298-4675-96e0-3b0a99ca0251",
+    "name": "Cimitero militare del Commonwealth",
+    "category": "cultura",
+    "description": "Il cimitero militare del Commonwealth di Cassino fu concepito in seguito alla battaglia di Montecassino, uno degli scontri più duri avvenuti sulla linea Gustav tra il 1943 e il 1944.\nLa battaglia culminò il 18 maggio 1944 con la distruzione della linea difensiva tedesca, aprendo la strada agli Alleati verso Roma. Molti soldati caduti furono inizialmente sepolti in cimiteri temporanei, per poi trovare una collocazione definitiva in questo luogo di memoria.\n\nLe lapidi recano iscrizioni che, quando possibile, specificano la nazionalità dei caduti, sebbene in molti casi riportano semplicemente \"un soldato della Seconda Guerra Mondiale”.\nOgni nazione del Commonwealth è rappresentata con simboli distintivi, che rendono omaggio al contributo globale nella lotta per la libertà.",
+    "lat": 41.477508,
+    "lng": 13.826358
+  },
+  {
     "id": "a883a3ee-4d73-451b-95be-494b5f9e25b9",
     "name": "Teatro Romano",
     "category": "cultura",
