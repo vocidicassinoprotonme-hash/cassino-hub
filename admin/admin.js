@@ -192,7 +192,7 @@ function ensureGithubBox(){
   // bind pulsanti GitHub/manager
   $("btnLoadContent").addEventListener("click", loadContentFromGithub);
   $("btnOpenManager").addEventListener("click", () => {
-    $("#manager").classList.toggle("hidden");
+    $("manager").classList.toggle("hidden");
   });
 
   $("tabPlaces").addEventListener("click", () => showManager("places"));
