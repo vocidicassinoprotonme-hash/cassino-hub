@@ -72,7 +72,7 @@ function bootSettings(){
   if ($("ghRepo")) $("ghRepo").value = STATE.ghRepo;
 }
 
-// =============== UI: aggiungiamo box GitHub + gestione contenuti ===============
+// =============== UI: box GitHub + gestione contenuti ===============
 function ensureGithubBox(){
   if(document.getElementById("ghBox")) return;
 
@@ -90,12 +90,12 @@ function ensureGithubBox(){
 
     <label class="field">
       <span>GitHub Token (Contents: Read/Write)</span>
-      <input id="ghToken" type="password" placeholder="ghp_..." />
+      <input id="ghToken" type="password" placeholder="github_pat_..." />
     </label>
 
     <label class="field">
       <span>Repo (owner/repo)</span>
-      <input id="ghRepo" type="text" placeholder="vocidicassinoprotonme-hash/cassino-hub" />
+      <input id="ghRepo" type="text" placeholder="owner/repo" />
     </label>
 
     <div class="row">
@@ -241,6 +241,7 @@ function ensureGithubBox(){
         break;
     }
   });
+} // ✅ QUESTA GRAFFA MANCAVA NEL TUO CODICE
 
 function showManager(which){
   $("mgrPlaces")?.classList.toggle("hidden", which !== "places");
@@ -497,17 +498,29 @@ function ghHeaders(){
   };
 }
 
+function parseRepo(){
+  const raw = (STATE.ghRepo || "").trim();
+  const parts = raw.split("/").filter(Boolean);
+  if(parts.length !== 2) return null;
+  return { owner: parts[0], repo: parts[1] };
+}
+
 async function ghGetFile(path){
-  const [owner, repo] = STATE.ghRepo.split("/");
-  const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
+  const rr = parseRepo();
+  if(!rr) throw new Error("Repo non valido. Usa formato owner/repo");
+  const url = `https://api.github.com/repos/${rr.owner}/${rr.repo}/contents/${path}`;
   const res = await fetch(url, { headers: ghHeaders() });
-  if(!res.ok) throw new Error(`GitHub GET ${path} ${res.status}`);
+  if(!res.ok){
+    const t = await res.text().catch(()=> "");
+    throw new Error(`GitHub GET ${path} ${res.status} ${t}`);
+  }
   return await res.json();
 }
 
 async function ghPutFile(path, contentStr, sha, message){
-  const [owner, repo] = STATE.ghRepo.split("/");
-  const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
+  const rr = parseRepo();
+  if(!rr) throw new Error("Repo non valido. Usa formato owner/repo");
+  const url = `https://api.github.com/repos/${rr.owner}/${rr.repo}/contents/${path}`;
 
   const body = {
     message,
@@ -522,7 +535,9 @@ async function ghPutFile(path, contentStr, sha, message){
   });
 
   const data = await res.json().catch(()=>null);
-  if(!res.ok) throw new Error(`GitHub PUT ${path} ${res.status} ${JSON.stringify(data)}`);
+  if(!res.ok){
+    throw new Error(`GitHub PUT ${path} ${res.status} ${JSON.stringify(data)}`);
+  }
   return data;
 }
 
@@ -552,7 +567,7 @@ async function loadContentFromGithub(){
     renderReviewsAdmin();
   } catch(e){
     console.warn(e);
-    if ($("ghStatus")) $("ghStatus").textContent = "Errore caricamento: controlla token/repo/percorso file.";
+    if ($("ghStatus")) $("ghStatus").textContent = `Errore caricamento: ${e.message}`;
   }
 }
 
@@ -731,12 +746,18 @@ function deleteEditorItem(){
 }
 
 async function publishToGithub(){
+  // 🔥 Leggi SEMPRE dagli input (così publish funziona anche se non hai premuto “Carica”)
+  STATE.ghToken = ($("ghToken")?.value || "").trim();
+  STATE.ghRepo  = ($("ghRepo")?.value || "").trim();
+  save(LS.GH_TOKEN, STATE.ghToken);
+  save(LS.GH_REPO, STATE.ghRepo);
+
   if(!STATE.ghToken || !STATE.ghRepo){
     if ($("ghStatus")) $("ghStatus").textContent = "Inserisci Token e Repo.";
     return;
   }
 
-  // se manca sha, ricarica prima (evita 409)
+  // Se manca sha, ricarica prima (evita 409)
   if(!STATE.placesSha || !STATE.reviewsSha){
     if ($("ghStatus")) $("ghStatus").textContent = "Ricarico Posti/Recensioni per sicurezza...";
     await loadContentFromGithub();
@@ -760,7 +781,7 @@ async function publishToGithub(){
     if ($("ghStatus")) $("ghStatus").textContent = "Pubblicato ✅ (attendi GitHub Pages 30–60 sec)";
   } catch(e){
     console.warn(e);
-    if ($("ghStatus")) $("ghStatus").textContent = "Errore publish: controlla permessi token/repo.";
+    if ($("ghStatus")) $("ghStatus").textContent = `Errore publish: ${e.message}`;
   }
 }
 
