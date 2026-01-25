@@ -407,7 +407,7 @@ function ensureMap(){
     $("edLat").value = lat.toFixed(6);
     $("edLng").value = lng.toFixed(6);
     renderMapPin(lat, lng);
-    $("#edStatus").textContent = "Coordinate impostate dalla mappa ✅";
+    $("edStatus").textContent = "Coordinate impostate dalla mappa ✅";
   });
 }
 
