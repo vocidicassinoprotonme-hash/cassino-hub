@@ -1,0 +1,20 @@
+[
+  {
+    "id": "r1",
+    "title": "Locale consigliato",
+    "place": "Esempio Ristorante",
+    "rating": 4,
+    "text": "Buona esperienza, servizio rapido.",
+    "lat": 41.4922,
+    "lng": 13.8330
+  },
+  {
+    "id": "r2",
+    "title": "Negozio ottimo",
+    "place": "Esempio Negozio",
+    "rating": 5,
+    "text": "Personale gentile e prezzi ok.",
+    "lat": 41.4940,
+    "lng": 13.8320
+  }
+]
