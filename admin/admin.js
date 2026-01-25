@@ -68,8 +68,8 @@ function bootSettings(){
 
   // area GitHub semplice (aggiungo io i campi se non esistono)
   ensureGithubBox();
-  $("#ghToken").value = STATE.ghToken;
-  $("#ghRepo").value = STATE.ghRepo;
+  $("ghToken").value = STATE.ghToken;
+  $("ghRepo").value = STATE.ghRepo;
 }
 
 // =============== UI: aggiungiamo box GitHub + gestione contenuti ===============
