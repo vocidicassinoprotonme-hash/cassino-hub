@@ -190,22 +190,57 @@ function ensureGithubBox(){
 
   connCard.appendChild(box);
 
-  // bind pulsanti GitHub/manager
-  $("btnLoadContent")?.addEventListener("click", loadContentFromGithub);
-  $("btnOpenManager")?.addEventListener("click", () => $("manager")?.classList.toggle("hidden"));
+  // ✅ Event delegation: un solo listener per tutti i bottoni dentro ghBox
+  box.addEventListener("click", (e) => {
+    const btn = e.target.closest("button");
+    if(!btn) return;
 
-  $("tabPlaces")?.addEventListener("click", () => showManager("places"));
-  $("tabReviews")?.addEventListener("click", () => showManager("reviews"));
+    switch(btn.id){
+      case "btnLoadContent":
+        loadContentFromGithub();
+        break;
 
-  $("btnAddPlace")?.addEventListener("click", () => openEditor("places", null));
-  $("btnAddReview")?.addEventListener("click", () => openEditor("reviews", null));
+      case "btnOpenManager":
+        $("manager")?.classList.toggle("hidden");
+        break;
 
-  $("btnCloseEditor")?.addEventListener("click", closeEditor);
-  $("btnPickOnMap")?.addEventListener("click", togglePickOnMap);
-  $("btnSaveItem")?.addEventListener("click", saveEditorItem);
-  $("btnDeleteItem")?.addEventListener("click", deleteEditorItem);
-  $("btnPublish")?.addEventListener("click", publishToGithub);
-}
+      case "tabPlaces":
+        showManager("places");
+        break;
+
+      case "tabReviews":
+        showManager("reviews");
+        break;
+
+      case "btnAddPlace":
+        openEditor("places", null);
+        break;
+
+      case "btnAddReview":
+        openEditor("reviews", null);
+        break;
+
+      case "btnCloseEditor":
+        closeEditor();
+        break;
+
+      case "btnPickOnMap":
+        togglePickOnMap();
+        break;
+
+      case "btnSaveItem":
+        saveEditorItem();
+        break;
+
+      case "btnDeleteItem":
+        deleteEditorItem();
+        break;
+
+      case "btnPublish":
+        publishToGithub();
+        break;
+    }
+  });
 
 function showManager(which){
   $("mgrPlaces")?.classList.toggle("hidden", which !== "places");
