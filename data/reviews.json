@@ -6,7 +6,7 @@
     "rating": 4,
     "text": "Buona esperienza, servizio rapido.",
     "lat": 41.4922,
-    "lng": 13.8330
+    "lng": 13.833
   },
   {
     "id": "r2",
@@ -14,7 +14,7 @@
     "place": "Esempio Negozio",
     "rating": 5,
     "text": "Personale gentile e prezzi ok.",
-    "lat": 41.4940,
-    "lng": 13.8320
+    "lat": 41.494,
+    "lng": 13.832
   }
 ]
