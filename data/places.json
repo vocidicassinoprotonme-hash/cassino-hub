@@ -1,5 +1,13 @@
 [
   {
+    "id": "a883a3ee-4d73-451b-95be-494b5f9e25b9",
+    "name": "Teatro Romano",
+    "category": "cultura",
+    "description": "Il Teatro Romano di Cassino rappresenta un tipico esempio di teatro ellenistico. Si trova nel cuore dell’antica Casinum. La sua costruzione avvenne in età augustea sfruttando quello che era un naturale declivio del monte. Riportato alla luce nel 1936 è stato restaurato nel 1959 e nel 2001. Oggi ospita importanti manifestazioni culturali, soprattutto durante il periodo estivo. Di forma semicircolare ha una ampiezza di 53,50 metri e può accogliere fino a 2.500 spettatori.\n\nNel corso dello scavo fu rinvenuto anche un frammento del capo, un braccio ed una spalla drappeggiata della statua di Ottaviano Augusto che ornava il teatro. Resti che sono oggi custoditi nel Museo Archeologico Nazionale di Cassino.",
+    "lat": 41.483163,
+    "lng": 13.821155
+  },
+  {
     "id": "0e9dc64b-13a0-4eac-a2fa-33f7fb2fbf22",
     "name": "Anfiteatro romano",
     "category": "cultura",
