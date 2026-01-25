@@ -1,5 +1,13 @@
 [
   {
+    "id": "02ef5581-01e4-4b06-ba1c-7f344b1c19e3",
+    "name": "Terme Varoniane",
+    "category": "cultura",
+    "description": "Nella zona del territorio di Cassino detta Monticello, presso la stazione ferroviaria, oltre a confluirvi le acque del fiume Rapido, sgorgano migliaia di sorgenti che generano uno dei rami del fiume Gari. La zona sorgentizia delle Terme Varroniane è classificata come la più grande d'Italia. Tali acque sgorgano dal parco delle Terme Varroniane, ricco di vegetazione, nella quale spiccano i salici piangenti con i rami spioventi sui ruscelli. Il paesaggio è particolarmente suggestivo in primavera e autunno.\n\nIl parco è poco distante dalla zona dove dovrebbe esservi l'antico edificio latino identificato come una sontuosa villa appartenuta a Marco Terenzio Varrone, da lui citata nei suoi scritti. Marco Tullio Cicerone sostiene che la villa avrebbe ospitato degli incontri amorosi sregolati di Marco Antonio.\n\nDopo scavi non esaustivi eseguiti nel 2001, Emilio Pistilli[1] ha avanzato l'ipotesi che la Villa di Varrone potrebbe trovarsi in una zona oggi nota come \"contrada Mastronardi\", ad ovest della ferrovia Roma-Napoli. Lungo l’argine destro del fiume sono stati trovati dei massi calcarei che, secondo Pistilli, sono compatibili con la descrizione della villa tramandata dallo stesso Varrone.\n\nIl parco ospita oggi uno stabilimento idropinico, la sala congressi - banchetti, l'area concerti ed il camping internazionale, attrezzato con area pic-nic e per attività sportiva. I ruscelli sono ricchi di fauna come trote, carpioni, anguille e lamprede.",
+    "lat": 41.481293,
+    "lng": 13.832184
+  },
+  {
     "id": "p1",
     "name": "Abbazia di Montecassino",
     "category": "cultura",
