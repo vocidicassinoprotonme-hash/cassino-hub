@@ -1,5 +1,13 @@
 [
   {
+    "id": "67ee4e1a-8853-4985-92d6-c2a401de5c27",
+    "name": "Sacrario militare germanico",
+    "category": "cultura",
+    "description": "Il sacrario militare germanico di Cassino fu realizzato su Colle Marino in località Caira, sotto la linea difensiva Gustav su cui nel 1944 i Tedeschi erano asserragliati e da cui tennero a bada gli Alleati per 4 lunghi mesi, avendo da lì la possibilità di osservare il loro arrivo e preparate la difesa. Benché si trovi nella Valle del Liri, proprio sotto la celebre Abbazia di Montecassino. Sono ricordate in questo luogo i 20187 soldati tedeschi ed Austriaci che combatterono nel Centro e Sud Italia, e sono ricordati i nomi dei 300 soldati che risultarono dispersi in battaglia.",
+    "lat": 41.53106,
+    "lng": 13.823043
+  },
+  {
     "id": "1745610a-6298-4675-96e0-3b0a99ca0251",
     "name": "Cimitero militare del Commonwealth",
     "category": "cultura",
