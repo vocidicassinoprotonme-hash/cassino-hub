@@ -190,27 +190,27 @@ function ensureGithubBox(){
   connCard.appendChild(box);
 
   // bind pulsanti GitHub/manager
-  $("#btnLoadContent").addEventListener("click", loadContentFromGithub);
-  $("#btnOpenManager").addEventListener("click", () => {
+  $("btnLoadContent").addEventListener("click", loadContentFromGithub);
+  $("btnOpenManager").addEventListener("click", () => {
     $("#manager").classList.toggle("hidden");
   });
 
-  $("#tabPlaces").addEventListener("click", () => showManager("places"));
-  $("#tabReviews").addEventListener("click", () => showManager("reviews"));
+  $("tabPlaces").addEventListener("click", () => showManager("places"));
+  $("tabReviews").addEventListener("click", () => showManager("reviews"));
 
-  $("#btnAddPlace").addEventListener("click", () => openEditor("places", null));
-  $("#btnAddReview").addEventListener("click", () => openEditor("reviews", null));
+  $("btnAddPlace").addEventListener("click", () => openEditor("places", null));
+  $("btnAddReview").addEventListener("click", () => openEditor("reviews", null));
 
-  $("#btnCloseEditor").addEventListener("click", closeEditor);
-  $("#btnPickOnMap").addEventListener("click", togglePickOnMap);
-  $("#btnSaveItem").addEventListener("click", saveEditorItem);
-  $("#btnDeleteItem").addEventListener("click", deleteEditorItem);
-  $("#btnPublish").addEventListener("click", publishToGithub);
+  $("btnCloseEditor").addEventListener("click", closeEditor);
+  $("btnPickOnMap").addEventListener("click", togglePickOnMap);
+  $("btnSaveItem").addEventListener("click", saveEditorItem);
+  $("btnDeleteItem").addEventListener("click", deleteEditorItem);
+  $("btnPublish").addEventListener("click", publishToGithub);
 }
 
 function showManager(which){
-  $("#mgrPlaces").classList.toggle("hidden", which !== "places");
-  $("#mgrReviews").classList.toggle("hidden", which !== "reviews");
+  $("mgrPlaces").classList.toggle("hidden", which !== "places");
+  $("mgrReviews").classList.toggle("hidden", which !== "reviews");
 }
 
 // =============== SALVATAGGIO chiavi (admin worker) ===============
@@ -404,8 +404,8 @@ function ensureMap(){
   STATE.map.on("click", (e)=>{
     if(!PICK_MODE) return;
     const { lat, lng } = e.latlng;
-    $("#edLat").value = lat.toFixed(6);
-    $("#edLng").value = lng.toFixed(6);
+    $("edLat").value = lat.toFixed(6);
+    $("edLng").value = lng.toFixed(6);
     renderMapPin(lat, lng);
     $("#edStatus").textContent = "Coordinate impostate dalla mappa ✅";
   });
@@ -425,8 +425,8 @@ function renderMapPin(lat, lng){
 
 function togglePickOnMap(){
   PICK_MODE = !PICK_MODE;
-  $("#btnPickOnMap").textContent = PICK_MODE ? "✅ Click sulla mappa..." : "📍 Seleziona su mappa";
-  $("#edStatus").textContent = PICK_MODE ? "Modalità selezione: clicca un punto sulla mappa." : "";
+  $("btnPickOnMap").textContent = PICK_MODE ? "✅ Click sulla mappa..." : "📍 Seleziona su mappa";
+  $("edStatus").textContent = PICK_MODE ? "Modalità selezione: clicca un punto sulla mappa." : "";
 }
 
 // =============== GITHUB: load + publish ===============
@@ -467,17 +467,17 @@ async function ghPutFile(path, contentStr, sha, message){
 }
 
 async function loadContentFromGithub(){
-  STATE.ghToken = $("#ghToken").value.trim();
-  STATE.ghRepo = $("#ghRepo").value.trim();
+  STATE.ghToken = $("ghToken").value.trim();
+  STATE.ghRepo = $("ghRepo").value.trim();
   save(LS.GH_TOKEN, STATE.ghToken);
   save(LS.GH_REPO, STATE.ghRepo);
 
   if(!STATE.ghToken || !STATE.ghRepo){
-    $("#ghStatus").textContent = "Inserisci GitHub Token e Repo.";
+    $("ghStatus").textContent = "Inserisci GitHub Token e Repo.";
     return;
   }
 
-  $("#ghStatus").textContent = "Carico file da GitHub...";
+  $("ghStatus").textContent = "Carico file da GitHub...";
   try{
     // places
     const placesFile = await ghGetFile("data/places.json");
@@ -489,17 +489,17 @@ async function loadContentFromGithub(){
     STATE.reviewsSha = reviewsFile.sha;
     STATE.reviews = JSON.parse(decodeURIComponent(escape(atob(reviewsFile.content))));
 
-    $("#ghStatus").textContent = `OK ✅ Posti: ${STATE.places.length} • Recensioni: ${STATE.reviews.length}`;
+    $("ghStatus").textContent = `OK ✅ Posti: ${STATE.places.length} • Recensioni: ${STATE.reviews.length}`;
     renderPlacesAdmin();
     renderReviewsAdmin();
   } catch(e){
     console.warn(e);
-    $("#ghStatus").textContent = "Errore caricamento: controlla token/repo/percorso file.";
+    $("ghStatus").textContent = "Errore caricamento: controlla token/repo/percorso file.";
   }
 }
 
 function renderPlacesAdmin(){
-  const root = $("#placesList");
+  const root = $("placesList");
   root.innerHTML = "";
   if(!STATE.places.length){
     root.innerHTML = `<p class="muted">Nessun posto.</p>`;
@@ -522,7 +522,7 @@ function renderPlacesAdmin(){
 }
 
 function renderReviewsAdmin(){
-  const root = $("#reviewsList");
+  const root = $("reviewsList");
   root.innerHTML = "";
   if(!STATE.reviews.length){
     root.innerHTML = `<p class="muted">Nessuna recensione.</p>`;
@@ -554,42 +554,42 @@ function openEditor(mode, id){
   EDIT_MODE = mode;
   EDIT_ID = id;
 
-  $("#editor").classList.remove("hidden");
+  $("editor").classList.remove("hidden");
   ensureMap();
 
   const isReview = mode === "reviews";
-  $("#edRatingWrap").classList.toggle("hidden", !isReview);
-  $("#edTitle").textContent = isReview ? "Editor • Recensione" : "Editor • Posto";
+  $("edRatingWrap").classList.toggle("hidden", !isReview);
+  $("edTitle").textContent = isReview ? "Editor • Recensione" : "Editor • Posto";
 
   const item = id ? (isReview ? STATE.reviews.find(x=>x.id===id) : STATE.places.find(x=>x.id===id)) : null;
 
   if(isReview){
-    $("#edName").value = item?.title || "";
-    $("#edCat").value  = item?.place || "";
-    $("#edDesc").value = item?.text || "";
-    $("#edLat").value  = (isNum(item?.lat) ? item.lat : "");
-    $("#edLng").value  = (isNum(item?.lng) ? item.lng : "");
+    $("edName").value = item?.title || "";
+    $("edCat").value  = item?.place || "";
+    $("edDesc").value = item?.text || "";
+    $("edLat").value  = (isNum(item?.lat) ? item.lat : "");
+    $("edLng").value  = (isNum(item?.lng) ? item.lng : "");
     $("#edRating").value = item?.rating ?? 5;
   } else {
-    $("#edName").value = item?.name || "";
-    $("#edCat").value  = item?.category || "";
-    $("#edDesc").value = item?.description || "";
-    $("#edLat").value  = (isNum(item?.lat) ? item.lat : "");
-    $("#edLng").value  = (isNum(item?.lng) ? item.lng : "");
+    $("edName").value = item?.name || "";
+    $("edCat").value  = item?.category || "";
+    $("edDesc").value = item?.description || "";
+    $("edLat").value  = (isNum(item?.lat) ? item.lat : "");
+    $("edLng").value  = (isNum(item?.lng) ? item.lng : "");
   }
 
-  const lat = Number($("#edLat").value);
-  const lng = Number($("#edLng").value);
+  const lat = Number($("edLat").value);
+  const lng = Number($("edLng").value);
   renderMapPin(Number.isFinite(lat)?lat:null, Number.isFinite(lng)?lng:null);
 
-  $("#edStatus").textContent = id ? "Modifica elemento esistente." : "Nuovo elemento.";
+  $("edStatus").textContent = id ? "Modifica elemento esistente." : "Nuovo elemento.";
 }
 
 function closeEditor(){
-  $("#editor").classList.add("hidden");
+  $("editor").classList.add("hidden");
   PICK_MODE = false;
-  $("#btnPickOnMap").textContent = "📍 Seleziona su mappa";
-  $("#edStatus").textContent = "";
+  $("btnPickOnMap").textContent = "📍 Seleziona su mappa";
+  $("edStatus").textContent = "";
   EDIT_MODE = null;
   EDIT_ID = null;
 }
@@ -599,21 +599,21 @@ function saveEditorItem(){
 
   const isReview = EDIT_MODE === "reviews";
 
-  const lat = $("#edLat").value ? Number($("#edLat").value) : null;
-  const lng = $("#edLng").value ? Number($("#edLng").value) : null;
+  const lat = $("edLat").value ? Number($("#edLat").value) : null;
+  const lng = $("edLng").value ? Number($("#edLng").value) : null;
 
   if(isReview){
     const obj = {
       id: EDIT_ID || uid(),
-      title: $("#edName").value.trim(),
-      place: $("#edCat").value.trim(),
-      rating: Math.max(1, Math.min(5, Number($("#edRating").value || 5))),
-      text: $("#edDesc").value.trim(),
+      title: $("edName").value.trim(),
+      place: $("edCat").value.trim(),
+      rating: Math.max(1, Math.min(5, Number($("edRating").value || 5))),
+      text: $("edDesc").value.trim(),
       lat: Number.isFinite(lat) ? lat : null,
       lng: Number.isFinite(lng) ? lng : null
     };
     if(!obj.title || !obj.text){
-      $("#edStatus").textContent = "Titolo e testo sono obbligatori.";
+      $("edStatus").textContent = "Titolo e testo sono obbligatori.";
       return;
     }
 
@@ -624,20 +624,20 @@ function saveEditorItem(){
       STATE.reviews.unshift(obj);
       EDIT_ID = obj.id;
     }
-    $("#edStatus").textContent = "Salvato in memoria ✅ (ora Pubblica su GitHub)";
+    $("edStatus").textContent = "Salvato in memoria ✅ (ora Pubblica su GitHub)";
     renderReviewsAdmin();
 
   } else {
     const obj = {
       id: EDIT_ID || uid(),
-      name: $("#edName").value.trim(),
-      category: $("#edCat").value.trim() || "posto",
-      description: $("#edDesc").value.trim(),
+      name: $("edName").value.trim(),
+      category: $("edCat").value.trim() || "posto",
+      description: $("edDesc").value.trim(),
       lat: Number.isFinite(lat) ? lat : null,
       lng: Number.isFinite(lng) ? lng : null
     };
     if(!obj.name || !obj.description){
-      $("#edStatus").textContent = "Nome e descrizione sono obbligatori.";
+      $("edStatus").textContent = "Nome e descrizione sono obbligatori.";
       return;
     }
 
@@ -648,7 +648,7 @@ function saveEditorItem(){
       STATE.places.unshift(obj);
       EDIT_ID = obj.id;
     }
-    $("#edStatus").textContent = "Salvato in memoria ✅ (ora Pubblica su GitHub)";
+    $("edStatus").textContent = "Salvato in memoria ✅ (ora Pubblica su GitHub)";
     renderPlacesAdmin();
   }
 }
@@ -668,20 +668,20 @@ function deleteEditorItem(){
   }
 
   closeEditor();
-  $("#ghStatus").textContent = "Eliminato in memoria ✅ (ora Pubblica su GitHub)";
+  $("ghStatus").textContent = "Eliminato in memoria ✅ (ora Pubblica su GitHub)";
 }
 
 async function publishToGithub(){
   if(!STATE.ghToken || !STATE.ghRepo){
-    $("#ghStatus").textContent = "Inserisci Token e Repo.";
+    $("ghStatus").textContent = "Inserisci Token e Repo.";
     return;
   }
   if(!STATE.placesSha || !STATE.reviewsSha){
-    $("#ghStatus").textContent = "Prima fai: Carica Posti/Recensioni.";
+    $("ghStatus").textContent = "Prima fai: Carica Posti/Recensioni.";
     return;
   }
 
-  $("#ghStatus").textContent = "Pubblico su GitHub...";
+  $("ghStatus").textContent = "Pubblico su GitHub...";
   try{
     const placesStr = JSON.stringify(STATE.places, null, 2);
     const reviewsStr = JSON.stringify(STATE.reviews, null, 2);
@@ -692,10 +692,10 @@ async function publishToGithub(){
     STATE.placesSha = p.content.sha;
     STATE.reviewsSha = r.content.sha;
 
-    $("#ghStatus").textContent = "Pubblicato ✅ (attendi GitHub Pages 30–60 sec)";
+    $("ghStatus").textContent = "Pubblicato ✅ (attendi GitHub Pages 30–60 sec)";
   } catch(e){
     console.warn(e);
-    $("#ghStatus").textContent = "Errore publish: controlla permessi token/repo.";
+    $("ghStatus").textContent = "Errore publish: controlla permessi token/repo.";
   }
 }
 
