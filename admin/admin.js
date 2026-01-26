@@ -59,6 +59,40 @@ function headersAdmin() {
   return { "X-Admin-Key": STATE.adminKey };
 }
 
+async function apiFetch(path, opts = {}) {
+  if (!STATE.apiBase) throw new Error("API Base mancante");
+  const base = STATE.apiBase.replace(/\/$/, "");
+  const url = new URL(base + path, window.location.href);
+
+  // Compatibilità: molti endpoint admin accettano anche ?ak=...
+  const needsAk = path.startsWith("/admin") || path.startsWith("/list") || path.startsWith("/photo");
+  if (STATE.adminKey && needsAk && !url.searchParams.get("ak")) {
+    url.searchParams.set("ak", STATE.adminKey);
+  }
+
+  const headers = { ...(opts.headers || {}), ...headersAdmin() };
+  const hasBody = opts.body !== undefined && opts.body !== null;
+  if (hasBody && !(opts.body instanceof FormData)) {
+    headers["Content-Type"] = "application/json";
+  }
+
+  const res = await fetch(url.toString(), {
+    method: opts.method || "GET",
+    headers,
+    body: hasBody ? (opts.body instanceof FormData ? opts.body : JSON.stringify(opts.body)) : undefined
+  });
+
+  // Prova a leggere JSON sempre
+  const text = await res.text();
+  let data;
+  try { data = text ? JSON.parse(text) : {}; } catch { data = { ok: false, error: "Risposta non JSON", raw: text }; }
+  if (!res.ok && data && typeof data === "object" && data.ok !== true) {
+    data.ok = false;
+    data.error = data.error || `HTTP ${res.status}`;
+  }
+  return data;
+}
+
 function normBase(u) {
   return (u || "").trim().replace(/\/$/, "");
 }
@@ -212,30 +246,19 @@ function wireCoreButtons() {
 // REPORTS
 // =======================
 async function loadReports() {
-  STATE.apiBase  = normBase($("apiBase")?.value || "");
-  STATE.adminKey = ($("adminKey")?.value || "").trim();
-  save(LS.API_BASE, STATE.apiBase);
-  save(LS.ADMIN_KEY, STATE.adminKey);
-
-  if (!STATE.apiBase || !STATE.adminKey) {
-    setConnStatus("Inserisci Worker base URL e Admin Key.");
-    return;
-  }
-
-  setConnStatus("Carico...");
+  setStatus("reportsStatus", "Carico segnalazioni…");
   try {
-    const res = await fetch(`${STATE.apiBase}/list`, { headers: headersAdmin() });
-    if (!res.ok) {
-      setConnStatus(`Errore /list: ${res.status}`);
-      return;
-    }
-    const data = await res.json();
-    STATE.reports = data.rows || [];
-    setConnStatus(`OK ✅ ${STATE.reports.length} segnalazioni`);
-    renderReportList();
+    const limit = 500;
+    const res = await apiFetch(`/list?limit=${limit}`);
+    if (!res.ok) throw new Error(res.error || "Errore nel caricamento segnalazioni");
+    // Il backend può rispondere con {rows:[...]} o direttamente con un array
+    const rows = Array.isArray(res) ? res : (res.rows || []);
+    STATE.reports = rows;
+    renderReports();
+    setStatus("reportsStatus", `OK • ${rows.length} segnalazioni (max ${limit}).`);
   } catch (e) {
-    console.warn(e);
-    setConnStatus("Errore rete.");
+    console.error(e);
+    setStatus("reportsStatus", "Errore: " + (e?.message || e));
   }
 }
 
@@ -617,34 +640,59 @@ async function ensureContentLoaded() {
 }
 
 async function loadContentFromGithub() {
-  STATE.ghToken = ($("ghToken")?.value || "").trim();
-  STATE.ghRepo  = ($("ghRepo")?.value  || "").trim();
-  save(LS.GH_TOKEN, STATE.ghToken);
-  save(LS.GH_REPO, STATE.ghRepo);
-
-  if (!STATE.ghToken || !STATE.ghRepo) {
-    setGhStatus("Inserisci GitHub Token e Repo.");
-    return;
-  }
-
-  setGhStatus("Carico file da GitHub...");
+  // In questa versione l’admin non legge più da GitHub: legge direttamente dal Worker (D1).
+  setStatus("ghStatus", "Carico contenuti da API…");
   try {
-    const placesFile = await ghGetFile("data/places.json");
-    STATE.placesSha = placesFile.sha;
-    STATE.places = JSON.parse(decodeURIComponent(escape(atob(placesFile.content))));
+    const limit = 500;
 
-    const reviewsFile = await ghGetFile("data/reviews.json");
-    STATE.reviewsSha = reviewsFile.sha;
-    STATE.reviews = JSON.parse(decodeURIComponent(escape(atob(reviewsFile.content))));
+    // PLACES (prova admin, poi public)
+    let placesRes = await apiFetch(`/admin/places?status=all&limit=${limit}`);
+    if (!placesRes.ok) {
+      placesRes = await apiFetch(`/public/places?limit=${limit}`, { headers: {} });
+    }
+    if (!placesRes.ok) throw new Error(placesRes.error || "Errore nel caricamento places");
+    const places = placesRes.rows || [];
+    STATE.places = places.map(p => ({
+      id: p.id,
+      name: p.name ?? "",
+      description: p.description ?? "",
+      category: p.category ?? p.type ?? "",
+      lat: p.lat ?? null,
+      lng: p.lng ?? null,
+      address: p.address ?? "",
+      phone: p.phone ?? "",
+      website: p.website ?? "",
+      tags: p.tags ?? "",
+      createdAt: p.createdAt ?? "",
+      updatedAt: p.updatedAt ?? ""
+    }));
 
-    setGhStatus(`OK ✅ Posti: ${STATE.places.length} • Recensioni: ${STATE.reviews.length}`);
+    // REVIEWS (prova admin, poi public)
+    let reviewsRes = await apiFetch(`/admin/reviews?status=all&limit=${limit}`);
+    if (!reviewsRes.ok) {
+      reviewsRes = await apiFetch(`/public/reviews?limit=${limit}`, { headers: {} });
+    }
+    if (!reviewsRes.ok) throw new Error(reviewsRes.error || "Errore nel caricamento reviews");
+    const reviews = reviewsRes.rows || [];
+    STATE.reviews = reviews.map(r => ({
+      id: r.id,
+      placeId: r.placeId ?? "",
+      place: r.place ?? "",
+      rating: r.rating ?? null,
+      title: r.title ?? "",
+      text: r.text ?? r.body ?? "",
+      author: r.author ?? "",
+      createdAt: r.createdAt ?? ""
+    }));
 
-    // render immediato
+    STATE.contentLoadedOnce = true;
     renderPlacesAdmin();
     renderReviewsAdmin();
+
+    setStatus("ghStatus", `OK • Places: ${STATE.places.length} • Reviews: ${STATE.reviews.length}`);
   } catch (e) {
-    console.warn(e);
-    setGhStatus(`Errore caricamento: ${e.message}`);
+    console.error(e);
+    setStatus("ghStatus", "Errore: " + (e?.message || e));
   }
 }
 
@@ -703,36 +751,9 @@ function renderReviewsAdmin() {
 }
 
 async function publishToGithub() {
-  STATE.ghToken = ($("ghToken")?.value || "").trim();
-  STATE.ghRepo  = ($("ghRepo")?.value  || "").trim();
-  save(LS.GH_TOKEN, STATE.ghToken);
-  save(LS.GH_REPO, STATE.ghRepo);
-
-  if (!STATE.ghToken || !STATE.ghRepo) {
-    setGhStatus("Inserisci Token e Repo.");
-    return;
-  }
-  if (!STATE.placesSha || !STATE.reviewsSha) {
-    setGhStatus("Prima fai: Carica da GitHub.");
-    return;
-  }
-
-  setGhStatus("Pubblico su GitHub...");
-  try {
-    const placesStr  = JSON.stringify(STATE.places, null, 2);
-    const reviewsStr = JSON.stringify(STATE.reviews, null, 2);
-
-    const p = await ghPutFile("data/places.json", placesStr, STATE.placesSha, `Update places ${nowISO()}`);
-    const r = await ghPutFile("data/reviews.json", reviewsStr, STATE.reviewsSha, `Update reviews ${nowISO()}`);
-
-    STATE.placesSha  = p.content.sha;
-    STATE.reviewsSha = r.content.sha;
-
-    setGhStatus("Pubblicato ✅ (attendi GitHub Pages 30–60 sec)");
-  } catch (e) {
-    console.warn(e);
-    setGhStatus(`Errore publish: ${e.message}`);
-  }
+  // Pubblicazione su GitHub disattivata: ora la fonte dati è D1 (tramite Worker).
+  setStatus("ghStatus", "Nota: la pubblicazione su GitHub è disattivata. I dati vengono letti/salvati in D1.");
+  alert("Pubblicazione su GitHub disattivata: questa admin legge i dati direttamente dal database (D1).");
 }
 
 // =======================
