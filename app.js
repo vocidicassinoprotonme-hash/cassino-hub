@@ -1,249 +1,175 @@
-/* app.js — Cassino Hub (main) */
+/* Cassino Hub - app.js (root) */
 
 const $ = (id) => document.getElementById(id);
 
 const LS = {
-  REPORTS_LOCAL: "ch_reports_local_v1",
-  LAST_PHOTO: "ch_last_photo_v1",
-  GH_TOKEN: "ch_ghToken",
-  GH_REPO: "ch_ghRepo",
-  WORKER_BASE: "ch_workerBase" // opzionale (se vuoi usare Worker per invio)
+  API_BASE: "ch_apiBase_public",
+  LOCAL_REPORTS: "ch_localReports_v1",
+  ADMIN_MODE: "ch_adminMode"
 };
 
-// ✅ metti qui il tuo Worker base URL (puoi anche lasciarlo vuoto: in quel caso "Invia" salva solo in locale)
-const DEFAULT_WORKER_BASE = "https://cassino-segnalazioni.vocidicassinoproton-me.workers.dev";
+// ✅ Imposta qui il tuo Worker base (quello che invia su Telegram)
+const DEFAULT_API_BASE = "https://cassino-segnalazioni.vocidicassinoproton-me.workers.dev";
 
+// Stato
 const STATE = {
-  view: "report",
-
-  // segnalazione in composizione
-  photoFile: null,
-  photoDataUrl: null, // base64 (compress)
-  pickLatLng: null,
-
-  // dati
-  reportsLocal: [],
-  places: [],
-  reviews: [],
+  apiBase: "",
+  localReports: [],
+  pickedPhoto: null, // File
+  pickedLat: null,
+  pickedLng: null,
 
   // mappe
-  mapMain: null,
-  mapPick: null,
-  mapPickMarker: null,
+  mainMap: null,
+  pickMap: null,
+  pickMarker: null,
+  pickLatLng: null,
 
-  // admin
-  ghToken: "",
-  ghRepo: "",
-  workerBase: ""
+  places: [],
+  reviews: []
 };
 
-// ---------- UTIL ----------
-function safeJSONParse(s, fallback){
-  try { return JSON.parse(s); } catch { return fallback; }
-}
-function saveLS(key, val){
-  try { localStorage.setItem(key, val); } catch {}
-}
-function loadLS(key, fallback=""){
+function load(key, fallback = "") {
   try { return localStorage.getItem(key) ?? fallback; } catch { return fallback; }
 }
-function delLS(key){
+function save(key, val) {
+  try { localStorage.setItem(key, val); } catch {}
+}
+function del(key) {
   try { localStorage.removeItem(key); } catch {}
 }
+
+function uid() {
+  return (crypto?.randomUUID?.() || (`id_${Date.now()}_${Math.random().toString(16).slice(2)}`));
+}
+
 function escapeHTML(s){
   return (s||"").toString().replace(/[&<>"']/g, m => ({
     "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
   }[m]));
 }
-function nowISO(){ return new Date().toISOString(); }
-function uid(){
-  return (crypto?.randomUUID?.() || `id_${Date.now()}_${Math.random().toString(16).slice(2)}`);
-}
+
 function isNum(n){ return typeof n === "number" && Number.isFinite(n); }
 
-// Comprime immagine in JPEG max 1280px
-async function fileToCompressedDataURL(file, maxSize=1280, quality=0.82){
-  const img = new Image();
-  const url = URL.createObjectURL(file);
+function setGeoStatus(msg){ if ($("geoStatus")) $("geoStatus").textContent = msg; }
 
-  await new Promise((res, rej)=>{
-    img.onload = res; img.onerror = rej; img.src = url;
-  });
-
-  const w = img.width, h = img.height;
-  const scale = Math.min(1, maxSize / Math.max(w,h));
-  const cw = Math.round(w * scale);
-  const ch = Math.round(h * scale);
-
-  const canvas = document.createElement("canvas");
-  canvas.width = cw; canvas.height = ch;
-  const ctx = canvas.getContext("2d");
-  ctx.drawImage(img, 0, 0, cw, ch);
-
-  URL.revokeObjectURL(url);
-
-  return canvas.toDataURL("image/jpeg", quality);
+function getApiBase(){
+  const stored = load(LS.API_BASE, "");
+  return (stored || DEFAULT_API_BASE).replace(/\/$/, "");
 }
 
-// ---------- BOOT ----------
-document.addEventListener("DOMContentLoaded", async () => {
-  // carica local
-  STATE.reportsLocal = safeJSONParse(loadLS(LS.REPORTS_LOCAL, "[]"), []);
-  STATE.photoDataUrl = loadLS(LS.LAST_PHOTO, "") || null;
-
-  // admin settings
-  STATE.ghToken = loadLS(LS.GH_TOKEN, "");
-  STATE.ghRepo  = loadLS(LS.GH_REPO, "");
-  STATE.workerBase = loadLS(LS.WORKER_BASE, DEFAULT_WORKER_BASE) || DEFAULT_WORKER_BASE;
-
-  // init UI
-  bindTabs();
-  bindReportUI();
-  bindListsUI();
-  bindAdminUI();
-
-  // carica data
-  await loadDataFiles();
-
-  // render iniziale
-  renderReportsLocal();
-  renderPlaces();
-  renderReviews();
-
-  // init mappa solo quando vai in tab "map"
-  setView("report");
-});
-
-function bindTabs(){
+/* =========================
+   TAB NAV
+========================= */
+function setupTabs(){
   document.querySelectorAll(".tab").forEach(btn=>{
-    btn.addEventListener("click", () => {
-      const v = btn.dataset.view;
-      setView(v);
+    btn.addEventListener("click", ()=>{
+      document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
+      btn.classList.add("active");
+
+      const view = btn.dataset.view;
+      document.querySelectorAll(".view").forEach(v=>v.classList.add("hidden"));
+      const el = document.getElementById(`view-${view}`);
+      if(el) el.classList.remove("hidden");
+
+      if(view === "map") {
+        ensureMainMap();
+        renderAllPinsOnMainMap();
+      }
     });
   });
 }
 
-function setView(view){
-  STATE.view = view;
-
-  // tab active
-  document.querySelectorAll(".tab").forEach(b=>{
-    b.classList.toggle("active", b.dataset.view === view);
+/* =========================
+   FOTO: gallery / camera
+========================= */
+function setupPhoto(){
+  $("btnPickGallery")?.addEventListener("click", ()=>{
+    $("rPhotoGallery")?.click();
   });
 
-  // sections
-  const map = {
-    report: "view-report",
-    reviews: "view-reviews",
-    places: "view-places",
-    map: "view-map",
-    admin: "view-admin"
+  $("btnPickCamera")?.addEventListener("click", ()=>{
+    $("rPhotoCamera")?.click();
+  });
+
+  const onFile = (file)=>{
+    if(!file) return;
+    STATE.pickedPhoto = file;
+    if ($("photoName")) $("photoName").textContent = `${file.name || "foto"} • ${(file.size/1024).toFixed(0)} KB`;
+    const url = URL.createObjectURL(file);
+    if ($("photoPreview")) $("photoPreview").src = url;
+    $("photoPreviewWrap")?.classList.remove("hidden");
   };
-  Object.values(map).forEach(id => $(id)?.classList.add("hidden"));
-  $(map[view])?.classList.remove("hidden");
 
-  // admin tab visibility
-  const adminTab = document.querySelector(".tab.adminOnly");
-  if (adminTab) adminTab.classList.toggle("hidden", !STATE.ghToken);
+  $("rPhotoGallery")?.addEventListener("change", (e)=>{
+    const file = e.target.files?.[0];
+    onFile(file);
+  });
 
-  // init map when open map view
-  if(view === "map"){
-    ensureMainMap();
-    refreshMainMapMarkers();
-    setTimeout(()=> STATE.mapMain?.invalidateSize?.(), 100);
-  }
+  $("rPhotoCamera")?.addEventListener("change", (e)=>{
+    const file = e.target.files?.[0];
+    onFile(file);
+  });
 }
 
-// ---------- REPORT UI ----------
-function bindReportUI(){
-  // Gallery / Camera buttons
-  $("btnPickGallery")?.addEventListener("click", () => $("rPhotoGallery")?.click());
-  $("btnPickCamera")?.addEventListener("click", () => $("rPhotoCamera")?.click());
+/* =========================
+   GEO: GPS + pick su mappa
+========================= */
+function setupGeo(){
+  $("btnGeo")?.addEventListener("click", ()=>{
+    if(!navigator.geolocation){
+      setGeoStatus("Geolocalizzazione non supportata.");
+      return;
+    }
+    setGeoStatus("Rilevo GPS...");
+    navigator.geolocation.getCurrentPosition((pos)=>{
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+      STATE.pickedLat = lat;
+      STATE.pickedLng = lng;
 
-  // file inputs
-  $("rPhotoGallery")?.addEventListener("change", onPickPhoto);
-  $("rPhotoCamera")?.addEventListener("change", onPickPhoto);
+      if ($("rLat")) $("rLat").value = lat.toFixed(6);
+      if ($("rLng")) $("rLng").value = lng.toFixed(6);
+      setGeoStatus(`OK ✅ ±${Math.round(pos.coords.accuracy)}m`);
 
-  // GPS
-  $("btnGeo")?.addEventListener("click", detectGPS);
-
-  // Pick on map modal
-  $("btnPickOnMap")?.addEventListener("click", openPickModal);
-  $("btnPickCancel")?.addEventListener("click", closePickModal);
-  $("btnPickUse")?.addEventListener("click", usePickedPoint);
-
-  // Save local / Send
-  $("btnSaveLocal")?.addEventListener("click", saveReportLocal);
-  $("btnSend")?.addEventListener("click", sendReport);
-
-  // iniziale: se worker base è vuoto, invio fa fallback a local
-  updateSendHint();
-}
-
-function updateSendHint(){
-  // Il tuo HTML ha una nota, qui rendiamo coerente:
-  // se workerBase non c'è -> invia salva solo in locale (non disabilito, così non “sembra rotto”)
-  // puoi cambiare comportamento se vuoi.
-}
-
-async function onPickPhoto(e){
-  const file = e.target.files?.[0];
-  if(!file) return;
-
-  STATE.photoFile = file;
-
-  try{
-    const dataUrl = await fileToCompressedDataURL(file);
-    STATE.photoDataUrl = dataUrl;
-    saveLS(LS.LAST_PHOTO, dataUrl);
-    showPhotoPreview(file.name, dataUrl);
-  } catch(err){
-    console.warn(err);
-    alert("Errore nel caricamento foto.");
-  } finally {
-    // reset input così puoi selezionare lo stesso file di nuovo
-    e.target.value = "";
-  }
-}
-
-function showPhotoPreview(name, dataUrl){
-  $("photoPreviewWrap")?.classList.remove("hidden");
-  if ($("photoName")) $("photoName").textContent = name ? `File: ${name}` : "";
-  if ($("photoPreview")) $("photoPreview").src = dataUrl;
-}
-
-async function detectGPS(){
-  if(!("geolocation" in navigator)){
-    if ($("geoStatus")) $("geoStatus").textContent = "Geolocalizzazione non supportata.";
-    return;
-  }
-  if ($("geoStatus")) $("geoStatus").textContent = "Rilevo posizione…";
-
-  navigator.geolocation.getCurrentPosition(
-    (pos) => {
-      const { latitude, longitude, accuracy } = pos.coords;
-      if ($("rLat")) $("rLat").value = latitude.toFixed(6);
-      if ($("rLng")) $("rLng").value = longitude.toFixed(6);
-      if ($("geoStatus")) $("geoStatus").textContent = `OK • ±${Math.round(accuracy)}m`;
-    },
-    (err) => {
+    }, (err)=>{
       console.warn(err);
-      if ($("geoStatus")) $("geoStatus").textContent = "Permesso negato o errore GPS.";
-    },
-    { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 }
-  );
+      setGeoStatus("Permesso negato o errore GPS.");
+    }, { enableHighAccuracy:true, timeout:15000, maximumAge:0 });
+  });
+
+  $("btnPickOnMap")?.addEventListener("click", ()=>{
+    openPickModal();
+  });
+
+  $("btnPickCancel")?.addEventListener("click", closePickModal);
+
+  $("btnPickUse")?.addEventListener("click", ()=>{
+    if(!STATE.pickLatLng){
+      alert("Tocca un punto sulla mappa prima di confermare.");
+      return;
+    }
+    const { lat, lng } = STATE.pickLatLng;
+    STATE.pickedLat = lat;
+    STATE.pickedLng = lng;
+    if ($("rLat")) $("rLat").value = lat.toFixed(6);
+    if ($("rLng")) $("rLng").value = lng.toFixed(6);
+    setGeoStatus("Selezionato su mappa ✅");
+    closePickModal();
+  });
 }
 
-// ---------- MAP PICK MODAL ----------
 function openPickModal(){
-  const modal = $("mapPickModal");
-  if(!modal) return;
-
-  modal.classList.remove("hidden");
-
-  // init leaflet map only once
+  $("mapPickModal")?.classList.remove("hidden");
   ensurePickMap();
-  setTimeout(()=> STATE.mapPick?.invalidateSize?.(), 120);
+  // centra su Cassino o su coordinate già presenti
+  if(isNum(STATE.pickedLat) && isNum(STATE.pickedLng)){
+    STATE.pickMap.setView([STATE.pickedLat, STATE.pickedLng], 15);
+    setPickMarker([STATE.pickedLat, STATE.pickedLng]);
+    STATE.pickLatLng = { lat: STATE.pickedLat, lng: STATE.pickedLng };
+  } else {
+    STATE.pickMap.setView([41.492, 13.832], 13);
+  }
 }
 
 function closePickModal(){
@@ -251,247 +177,240 @@ function closePickModal(){
 }
 
 function ensurePickMap(){
-  if(STATE.mapPick) return;
-  if(typeof L === "undefined"){
-    alert("Leaflet non caricato. Controlla connessione o blocchi.");
-    return;
-  }
+  if(STATE.pickMap) return;
+  if(!window.L) { alert("Leaflet non caricato."); return; }
 
-  STATE.mapPick = L.map("mapPick");
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(STATE.mapPick);
+  STATE.pickMap = L.map("mapPick");
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(STATE.pickMap);
 
-  // centro Cassino
-  STATE.mapPick.setView([41.492, 13.832], 13);
-
-  STATE.mapPick.on("click", (e)=>{
-    STATE.pickLatLng = e.latlng;
-    if(STATE.mapPickMarker){
-      STATE.mapPickMarker.setLatLng(e.latlng);
-    } else {
-      STATE.mapPickMarker = L.marker(e.latlng).addTo(STATE.mapPick);
-    }
-    if ($("pickHint")) $("pickHint").textContent = `Selezionato: ${e.latlng.lat.toFixed(6)}, ${e.latlng.lng.toFixed(6)}`;
+  STATE.pickMap.on("click", (e)=>{
+    const { lat, lng } = e.latlng;
+    STATE.pickLatLng = { lat, lng };
+    setPickMarker([lat, lng]);
+    const hint = $("pickHint");
+    if(hint) hint.textContent = `Scelto: ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
   });
 }
 
-function usePickedPoint(){
-  if(!STATE.pickLatLng){
-    alert("Tocca un punto sulla mappa prima di confermare.");
-    return;
-  }
-  if ($("rLat")) $("rLat").value = STATE.pickLatLng.lat.toFixed(6);
-  if ($("rLng")) $("rLng").value = STATE.pickLatLng.lng.toFixed(6);
-  if ($("geoStatus")) $("geoStatus").textContent = "Selezionata da mappa ✅";
-  closePickModal();
+function setPickMarker(latlng){
+  if(!STATE.pickMap) return;
+  if(STATE.pickMarker){ STATE.pickMarker.remove(); STATE.pickMarker=null; }
+  STATE.pickMarker = L.marker(latlng).addTo(STATE.pickMap);
 }
 
-// ---------- REPORTS LOCAL ----------
-function bindListsUI(){
-  $("btnExport")?.addEventListener("click", exportLocalJSON);
-  $("btnClear")?.addEventListener("click", clearLocal);
-}
-
-function getReportDraft(){
-  return {
-    id: uid(),
-    createdAt: nowISO(),
-    title: ($("rTitle")?.value || "").trim(),
-    description: ($("rDesc")?.value || "").trim(),
-    lat: parseFloat(($("rLat")?.value || "").trim()),
-    lng: parseFloat(($("rLng")?.value || "").trim()),
-    photoDataUrl: STATE.photoDataUrl || null
-  };
-}
-
-function validateDraft(d){
-  if(!d.title) return "Inserisci un titolo.";
-  if(!d.description) return "Inserisci una descrizione.";
-  // lat/lng facoltativi
-  if(!Number.isFinite(d.lat)) d.lat = null;
-  if(!Number.isFinite(d.lng)) d.lng = null;
-  return null;
-}
-
-function saveReportLocal(){
-  const d = getReportDraft();
-  const err = validateDraft(d);
-  if(err){ alert(err); return; }
-
-  STATE.reportsLocal.unshift(d);
-  saveLS(LS.REPORTS_LOCAL, JSON.stringify(STATE.reportsLocal));
-  renderReportsLocal();
-
-  // pulisci form (mantengo foto se vuoi: io la resetto)
-  clearReportForm(true);
-
-  alert("Salvata sul telefono ✅");
-  // se sei in tab map, aggiorna markers
-  refreshMainMapMarkers();
-}
-
-function clearReportForm(resetPhoto=false){
-  if ($("rTitle")) $("rTitle").value = "";
-  if ($("rDesc")) $("rDesc").value = "";
-  if ($("rLat")) $("rLat").value = "";
-  if ($("rLng")) $("rLng").value = "";
-  if ($("geoStatus")) $("geoStatus").textContent = "Non rilevata";
-
-  if(resetPhoto){
-    STATE.photoFile = null;
-    STATE.photoDataUrl = null;
-    delLS(LS.LAST_PHOTO);
-    $("photoPreviewWrap")?.classList.add("hidden");
-    if ($("photoPreview")) $("photoPreview").removeAttribute("src");
-    if ($("photoName")) $("photoName").textContent = "";
+/* =========================
+   REPORTS: local + send
+========================= */
+function loadLocalReports(){
+  try{
+    STATE.localReports = JSON.parse(load(LS.LOCAL_REPORTS, "[]")) || [];
+  } catch {
+    STATE.localReports = [];
   }
 }
 
-function renderReportsLocal(){
+function saveLocalReports(){
+  save(LS.LOCAL_REPORTS, JSON.stringify(STATE.localReports));
+}
+
+function renderLocalReports(){
   const root = $("reportList");
   if(!root) return;
   root.innerHTML = "";
 
-  if(!STATE.reportsLocal.length){
+  if(!STATE.localReports.length){
     root.innerHTML = `<p class="muted">Nessuna segnalazione salvata.</p>`;
     return;
   }
 
-  for(const r of STATE.reportsLocal){
+  for(const r of STATE.localReports){
     const el = document.createElement("div");
     el.className = "item";
-    const when = new Date(r.createdAt).toLocaleString("it-IT");
     el.innerHTML = `
       <div class="badges">
-        <span class="badge">${when}</span>
-        ${r.photoDataUrl ? `<span class="badge">📷</span>` : ``}
+        <span class="badge">${escapeHTML(new Date(r.createdAt).toLocaleString("it-IT"))}</span>
+        ${r.photoName ? `<span class="badge">📷</span>` : ``}
         ${isNum(r.lat) && isNum(r.lng) ? `<span class="badge">📍</span>` : ``}
       </div>
-      <h4>${escapeHTML(r.title)}</h4>
-      <p class="muted">${escapeHTML(r.description)}</p>
+      <h4>${escapeHTML(r.title || "")}</h4>
+      <p class="muted">${escapeHTML(r.description || "")}</p>
     `;
     root.appendChild(el);
   }
 }
 
-function exportLocalJSON(){
-  const blob = new Blob([JSON.stringify(STATE.reportsLocal, null, 2)], { type:"application/json" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = "cassino-hub-segnalazioni-locali.json";
-  a.click();
-  URL.revokeObjectURL(a.href);
+function setupReportButtons(){
+  $("btnSaveLocal")?.addEventListener("click", ()=>{
+    const report = buildReportPayload({ includePhotoBase64:true });
+    if(!report.title || !report.description){
+      alert("Inserisci Titolo e Descrizione.");
+      return;
+    }
+    STATE.localReports.unshift(report);
+    saveLocalReports();
+    renderLocalReports();
+    alert("Salvata sul telefono ✅");
+  });
+
+  $("btnSend")?.addEventListener("click", sendReport);
+
+  $("btnExport")?.addEventListener("click", ()=>{
+    const blob = new Blob([JSON.stringify(STATE.localReports, null, 2)], { type:"application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "cassino-hub-segnalazioni-locali.json";
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+
+  $("btnClear")?.addEventListener("click", ()=>{
+    if(!confirm("Svuotare l'elenco locale?")) return;
+    STATE.localReports = [];
+    saveLocalReports();
+    renderLocalReports();
+  });
 }
 
-function clearLocal(){
-  if(!confirm("Vuoi svuotare l’elenco locale?")) return;
-  STATE.reportsLocal = [];
-  saveLS(LS.REPORTS_LOCAL, "[]");
-  renderReportsLocal();
-  refreshMainMapMarkers();
+function buildReportPayload({ includePhotoBase64=false } = {}){
+  const title = ($("rTitle")?.value || "").trim();
+  const description = ($("rDesc")?.value || "").trim();
+  const lat = isNum(STATE.pickedLat) ? STATE.pickedLat : null;
+  const lng = isNum(STATE.pickedLng) ? STATE.pickedLng : null;
+
+  const base = {
+    id: uid(),
+    title,
+    description,
+    lat, lng,
+    createdAt: new Date().toISOString()
+  };
+
+  if(includePhotoBase64 && STATE.pickedPhoto){
+    // ATTENZIONE: base64 può pesare. Va bene per test/locale.
+    base.photoName = STATE.pickedPhoto.name || "foto.jpg";
+  }
+  return base;
 }
 
-// ---------- SEND TO WORKER (opzionale) ----------
 async function sendReport(){
-  const d = getReportDraft();
-  const err = validateDraft(d);
-  if(err){ alert(err); return; }
+  const base = getApiBase();
+  STATE.apiBase = base;
 
-  // se non vuoi inviare online, salva e basta
-  const base = (STATE.workerBase || DEFAULT_WORKER_BASE || "").trim();
-  if(!base){
-    saveReportLocal();
+  const title = ($("rTitle")?.value || "").trim();
+  const description = ($("rDesc")?.value || "").trim();
+
+  if(!title || !description){
+    alert("Inserisci Titolo e Descrizione.");
     return;
   }
 
-  // invio: endpoint presunto /submit
-  // (se nel tuo Worker hai un path diverso dimmelo e lo adeguo)
-  const url = `${base.replace(/\/$/,"")}/submit`;
+  const payload = buildReportPayload();
 
-  // UI feedback
-  $("btnSend")?.setAttribute("disabled", "disabled");
-  const oldText = $("btnSend")?.textContent;
-  if ($("btnSend")) $("btnSend").textContent = "Invio…";
+  // UI
+  const btn = $("btnSend");
+  if(btn){ btn.disabled = true; btn.textContent = "Invio..."; }
 
   try{
-    const payload = {
-      title: d.title,
-      description: d.description,
-      lat: d.lat,
-      lng: d.lng,
-      // foto come base64 jpeg (compress). Se vuoi: invio come multipart, ma qui è semplice.
-      photoDataUrl: d.photoDataUrl
-    };
+    // ✅ Primo tentativo: multipart/form-data (gestisce foto facilmente)
+    const fd = new FormData();
+    fd.append("id", payload.id);
+    fd.append("title", payload.title);
+    fd.append("description", payload.description);
+    if(isNum(payload.lat)) fd.append("lat", String(payload.lat));
+    if(isNum(payload.lng)) fd.append("lng", String(payload.lng));
+    fd.append("createdAt", payload.createdAt);
+    if(STATE.pickedPhoto) fd.append("photo", STATE.pickedPhoto);
 
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type":"application/json" },
-      body: JSON.stringify(payload)
-    });
-
+    const res = await fetch(`${base}/submit`, { method:"POST", body: fd });
     const data = await res.json().catch(()=>null);
 
-    if(!res.ok || !data?.ok){
-      console.warn("send error", res.status, data);
-      alert("Invio non riuscito. Ho salvato in locale ✅");
-      saveReportLocal();
-      return;
+    if(!res.ok || (data && data.ok === false)){
+      // fallback: JSON (se il Worker non accetta multipart)
+      const res2 = await fetch(`${base}/submit`, {
+        method:"POST",
+        headers: { "Content-Type":"application/json" },
+        body: JSON.stringify({
+          ...payload,
+          // niente file qui: se serve foto con JSON va gestita nel Worker
+          photo: null
+        })
+      });
+      const data2 = await res2.json().catch(()=>null);
+      if(!res2.ok || (data2 && data2.ok === false)){
+        throw new Error(`Submit failed: ${res.status}/${res2.status}`);
+      }
     }
 
-    // success
-    alert("Inviata ✅");
-    clearReportForm(true);
-    // opzionale: salva comunque una copia locale
-    STATE.reportsLocal.unshift({ ...d, sentOnline: true });
-    saveLS(LS.REPORTS_LOCAL, JSON.stringify(STATE.reportsLocal));
-    renderReportsLocal();
-    refreshMainMapMarkers();
+    // Success ✅
+    STATE.localReports.unshift({
+      ...payload,
+      photoName: STATE.pickedPhoto?.name || null
+    });
+    saveLocalReports();
+    renderLocalReports();
+
+    alert("Inviata ✅ (notifica Telegram dal Worker)");
+    // reset form
+    if($("rTitle")) $("rTitle").value = "";
+    if($("rDesc")) $("rDesc").value = "";
+    STATE.pickedPhoto = null;
+    $("photoPreviewWrap")?.classList.add("hidden");
+    if($("photoPreview")) $("photoPreview").removeAttribute("src");
+    if($("photoName")) $("photoName").textContent = "";
+    STATE.pickedLat = null;
+    STATE.pickedLng = null;
+    if($("rLat")) $("rLat").value = "";
+    if($("rLng")) $("rLng").value = "";
+    setGeoStatus("Non rilevata");
 
   } catch(e){
     console.warn(e);
-    alert("Errore rete. Ho salvato in locale ✅");
-    saveReportLocal();
+    // Salvataggio locale di sicurezza
+    STATE.localReports.unshift({
+      ...payload,
+      photoName: STATE.pickedPhoto?.name || null
+    });
+    saveLocalReports();
+    renderLocalReports();
+    alert("Invio non riuscito. Ho salvato in locale ✅");
   } finally {
-    if ($("btnSend")) $("btnSend").removeAttribute("disabled");
-    if ($("btnSend")) $("btnSend").textContent = oldText || "Invia";
+    if(btn){ btn.disabled = false; btn.textContent = "Invia"; }
   }
 }
 
-// ---------- LOAD DATA (places / reviews) ----------
+/* =========================
+   PLACES + REVIEWS (lettura semplice da /data)
+========================= */
 async function loadDataFiles(){
   try{
-    const [placesRes, reviewsRes] = await Promise.all([
-      fetch("./data/places.json", { cache: "no-store" }),
-      fetch("./data/reviews.json", { cache: "no-store" })
-    ]);
-
-    if(placesRes.ok) STATE.places = await placesRes.json();
-    if(reviewsRes.ok) STATE.reviews = await reviewsRes.json();
-
+    const p = await fetch("./data/places.json", { cache:"no-store" }).then(r=>r.ok?r.json():[]);
+    const r = await fetch("./data/reviews.json", { cache:"no-store" }).then(r=>r.ok?r.json():[]);
+    STATE.places = Array.isArray(p) ? p : [];
+    STATE.reviews = Array.isArray(r) ? r : [];
   } catch(e){
-    console.warn("loadDataFiles", e);
-    // non blocco l’app
-    STATE.places = STATE.places || [];
-    STATE.reviews = STATE.reviews || [];
+    console.warn("load data failed", e);
+    STATE.places = [];
+    STATE.reviews = [];
   }
+  renderPlaces();
+  renderReviews();
 }
 
 function renderPlaces(){
   const root = $("placesList");
   if(!root) return;
   root.innerHTML = "";
-
-  if(!STATE.places?.length){
-    root.innerHTML = `<p class="muted">Nessun posto disponibile.</p>`;
+  if(!STATE.places.length){
+    root.innerHTML = `<p class="muted">Nessun posto.</p>`;
     return;
   }
-
   for(const p of STATE.places){
     const el = document.createElement("div");
     el.className = "item";
     el.innerHTML = `
       <div class="badges">
         <span class="badge">${escapeHTML(p.category || "posto")}</span>
-        ${isNum(p.lat) && isNum(p.lng) ? `<span class="badge">📍</span>` : ``}
+        ${isNum(p.lat)&&isNum(p.lng) ? `<span class="badge">📍</span>` : ``}
       </div>
       <h4>${escapeHTML(p.name || "")}</h4>
       <p class="muted">${escapeHTML(p.description || "")}</p>
@@ -504,12 +423,10 @@ function renderReviews(){
   const root = $("reviewsList");
   if(!root) return;
   root.innerHTML = "";
-
-  if(!STATE.reviews?.length){
-    root.innerHTML = `<p class="muted">Nessuna recensione disponibile.</p>`;
+  if(!STATE.reviews.length){
+    root.innerHTML = `<p class="muted">Nessuna recensione.</p>`;
     return;
   }
-
   for(const r of STATE.reviews){
     const stars = "⭐".repeat(Math.max(0, Math.min(5, Number(r.rating || 0))));
     const el = document.createElement("div");
@@ -518,7 +435,7 @@ function renderReviews(){
       <div class="badges">
         <span class="badge">${stars || "recensione"}</span>
         ${r.place ? `<span class="badge">${escapeHTML(r.place)}</span>` : ``}
-        ${isNum(r.lat) && isNum(r.lng) ? `<span class="badge">📍</span>` : ``}
+        ${isNum(r.lat)&&isNum(r.lng) ? `<span class="badge">📍</span>` : ``}
       </div>
       <h4>${escapeHTML(r.title || "")}</h4>
       <p class="muted">${escapeHTML(r.text || "")}</p>
@@ -527,144 +444,67 @@ function renderReviews(){
   }
 }
 
-// ---------- MAIN MAP ----------
+/* =========================
+   MAIN MAP (view map)
+========================= */
 function ensureMainMap(){
-  if(STATE.mapMain) return;
-  if(typeof L === "undefined") return;
+  if(STATE.mainMap) return;
+  const el = $("map");
+  if(!el || !window.L) return;
 
-  STATE.mapMain = L.map("map");
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(STATE.mapMain);
-  STATE.mapMain.setView([41.492, 13.832], 13);
+  STATE.mainMap = L.map("map");
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(STATE.mainMap);
+  STATE.mainMap.setView([41.492, 13.832], 13);
 }
 
-function refreshMainMapMarkers(){
-  if(!STATE.mapMain) return;
+function renderAllPinsOnMainMap(){
+  if(!STATE.mainMap) return;
 
-  // pulisco layer marker (semplice)
-  STATE.mapMain.eachLayer(layer=>{
-    // lascia tile layer
-    if(layer instanceof L.TileLayer) return;
-    STATE.mapMain.removeLayer(layer);
+  // pulizia layer marker
+  STATE.mainMap.eachLayer(layer=>{
+    // lascia tileLayer
+    if(layer instanceof L.Marker) STATE.mainMap.removeLayer(layer);
   });
 
   // posti
-  for(const p of (STATE.places || [])){
+  for(const p of STATE.places){
     if(isNum(p.lat) && isNum(p.lng)){
-      L.marker([p.lat, p.lng]).addTo(STATE.mapMain)
-        .bindPopup(`<b>${escapeHTML(p.name || "")}</b><br>${escapeHTML(p.category || "")}`);
+      L.marker([p.lat, p.lng]).addTo(STATE.mainMap).bindPopup(`<b>${escapeHTML(p.name||"")}</b><br>${escapeHTML(p.category||"")}`);
     }
   }
-
   // recensioni
-  for(const r of (STATE.reviews || [])){
+  for(const r of STATE.reviews){
     if(isNum(r.lat) && isNum(r.lng)){
-      L.circleMarker([r.lat, r.lng], { radius: 6 }).addTo(STATE.mapMain)
-        .bindPopup(`<b>${escapeHTML(r.title || "")}</b><br>${escapeHTML(r.place || "")}`);
+      L.marker([r.lat, r.lng]).addTo(STATE.mainMap).bindPopup(`<b>${escapeHTML(r.title||"")}</b><br>${escapeHTML(r.place||"")}`);
     }
   }
-
   // segnalazioni locali
-  for(const s of (STATE.reportsLocal || [])){
+  for(const s of STATE.localReports){
     if(isNum(s.lat) && isNum(s.lng)){
-      L.circleMarker([s.lat, s.lng], { radius: 7 }).addTo(STATE.mapMain)
-        .bindPopup(`<b>${escapeHTML(s.title || "")}</b><br>${escapeHTML(s.description || "")}`);
+      L.marker([s.lat, s.lng]).addTo(STATE.mainMap).bindPopup(`<b>${escapeHTML(s.title||"")}</b><br>${escapeHTML(s.description||"")}`);
     }
   }
 }
 
-// ---------- ADMIN (push /data) ----------
-function bindAdminUI(){
-  // mostra tab admin solo se token esiste
-  const adminTab = document.querySelector(".tab.adminOnly");
-  if (adminTab) adminTab.classList.toggle("hidden", !STATE.ghToken);
+/* =========================
+   BOOT
+========================= */
+function boot(){
+  // api base in storage (se vuoi cambiarlo in futuro)
+  const base = getApiBase();
+  STATE.apiBase = base;
+  save(LS.API_BASE, base);
 
-  // carica valori nei campi
-  if ($("ghToken")) $("ghToken").value = STATE.ghToken || "";
-  if ($("ghRepo")) $("ghRepo").value = STATE.ghRepo || "";
+  setupTabs();
+  setupPhoto();
+  setupGeo();
 
-  $("btnSaveToken")?.addEventListener("click", ()=>{
-    STATE.ghToken = ($("ghToken")?.value || "").trim();
-    saveLS(LS.GH_TOKEN, STATE.ghToken);
-    const adminTab = document.querySelector(".tab.adminOnly");
-    if (adminTab) adminTab.classList.toggle("hidden", !STATE.ghToken);
-    alert("Token salvato ✅");
-  });
+  loadLocalReports();
+  renderLocalReports();
+  setupReportButtons();
 
-  $("btnRemoveToken")?.addEventListener("click", ()=>{
-    delLS(LS.GH_TOKEN);
-    STATE.ghToken = "";
-    if ($("ghToken")) $("ghToken").value = "";
-    const adminTab = document.querySelector(".tab.adminOnly");
-    if (adminTab) adminTab.classList.add("hidden");
-    alert("Token rimosso ✅");
-    if(STATE.view === "admin") setView("report");
-  });
-
-  $("btnPushData")?.addEventListener("click", pushDataToGithub);
+  loadDataFiles().catch(()=>{});
+  setGeoStatus("Non rilevata");
 }
 
-function ghHeaders(){
-  return {
-    "Authorization": `Bearer ${STATE.ghToken}`,
-    "Accept": "application/vnd.github+json"
-  };
-}
-async function ghGetFile(path){
-  const [owner, repo] = (STATE.ghRepo || "").split("/");
-  if(!owner || !repo) throw new Error("Repo non valido");
-  const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
-  const res = await fetch(url, { headers: ghHeaders() });
-  const data = await res.json().catch(()=>null);
-  if(!res.ok) throw new Error(`GET ${path} ${res.status} ${JSON.stringify(data)}`);
-  return data;
-}
-async function ghPutFile(path, contentStr, sha, message){
-  const [owner, repo] = (STATE.ghRepo || "").split("/");
-  if(!owner || !repo) throw new Error("Repo non valido");
-  const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
-
-  const body = {
-    message,
-    content: btoa(unescape(encodeURIComponent(contentStr)))
-  };
-  if(sha) body.sha = sha;
-
-  const res = await fetch(url, {
-    method: "PUT",
-    headers: { ...ghHeaders(), "Content-Type":"application/json" },
-    body: JSON.stringify(body)
-  });
-
-  const data = await res.json().catch(()=>null);
-  if(!res.ok) throw new Error(`PUT ${path} ${res.status} ${JSON.stringify(data)}`);
-  return data;
-}
-
-async function pushDataToGithub(){
-  STATE.ghToken = ($("ghToken")?.value || "").trim();
-  STATE.ghRepo  = ($("ghRepo")?.value || "").trim();
-  saveLS(LS.GH_TOKEN, STATE.ghToken);
-  saveLS(LS.GH_REPO, STATE.ghRepo);
-
-  if(!STATE.ghToken || !STATE.ghRepo){
-    alert("Inserisci Token e Repo (owner/repo).");
-    return;
-  }
-
-  try{
-    // prendo SHA correnti
-    const placesFile = await ghGetFile("data/places.json");
-    const reviewsFile = await ghGetFile("data/reviews.json");
-
-    const placesStr = JSON.stringify(STATE.places || [], null, 2);
-    const reviewsStr = JSON.stringify(STATE.reviews || [], null, 2);
-
-    await ghPutFile("data/places.json", placesStr, placesFile.sha, `Update places ${nowISO()}`);
-    await ghPutFile("data/reviews.json", reviewsStr, reviewsFile.sha, `Update reviews ${nowISO()}`);
-
-    alert("Pubblicato su GitHub ✅ (attendi GitHub Pages ~1 min)");
-  } catch(e){
-    console.warn(e);
-    alert("Errore pubblicazione su GitHub. Controlla permessi token (Contents: Read/Write) e repo.");
-  }
-}
+boot();
