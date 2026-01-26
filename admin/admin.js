@@ -66,6 +66,18 @@ function normBase(u){
 function setupTopTabs(){
   document.querySelectorAll(".tab").forEach(btn=>{
     btn.addEventListener("click", ()=>{
+      case "tabPlaces":
+  showManager("places");
+  // ricarica contenuti e ridisegna
+  loadContentFromGithub().catch(()=>{});
+  break;
+
+case "tabReviews":
+  showManager("reviews");
+  // ricarica contenuti e ridisegna
+  loadContentFromGithub().catch(()=>{});
+  break;
+
       document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
       btn.classList.add("active");
       const view = btn.dataset.view;
