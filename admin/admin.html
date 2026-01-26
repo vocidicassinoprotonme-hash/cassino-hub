@@ -3,131 +3,73 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Admin • Cassino Hub</title>
-
+  <title>Cassino Hub • Admin</title>
   <link rel="stylesheet" href="../styles.css" />
-  <link rel="manifest" href="../manifest.webmanifest" />
-
-  <!-- Leaflet -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-  <style>
-    /* fallback se styles.css non contiene map */
-    .map { height: 240px; border-radius: 14px; overflow: hidden; }
-    .hidden { display:none !important; }
-  </style>
 </head>
-
 <body>
-  <div class="app">
-    <header class="topbar">
-      <h2>Admin Segnalazioni</h2>
-      <p class="muted">Controllo • Note • Risposte • Stato</p>
-    </header>
-
-    <div class="layout" style="margin-top:14px">
-      <!-- CONNESSIONE -->
-      <div class="card">
-        <h3>Connessione</h3>
-
-        <label class="field">
-          <span>Worker base URL</span>
-          <input id="apiBase" type="text" value="https://cassino-segnalazioni.vocidicassinoproton-me.workers.dev" />
-        </label>
-
-        <label class="field">
-          <span>Admin Key (rimane solo nel browser)</span>
-          <input id="adminKey" type="password" placeholder="incolla qui la chiave" />
-        </label>
-
-        <div class="row">
-          <button id="btnSaveKey" class="btn" type="button">Salva</button>
-          <button id="btnClearKey" class="btn danger" type="button">Rimuovi</button>
-        </div>
-
-        <p id="connStatus" class="muted mini"></p>
-
-        <hr />
-
-        <div class="row">
-          <button id="btnRefresh" class="btn" type="button">Aggiorna</button>
-          <button id="btnExport" class="btn secondary" type="button">Esporta JSON</button>
-        </div>
-
-        <!-- qui sotto verrà inserito automaticamente il box GitHub -->
-      </div>
-
-      <!-- LISTA -->
-      <div class="card">
-        <div class="row space">
-          <h3>Segnalazioni</h3>
-          <input id="q" type="text" placeholder="filtra titolo/descrizione" style="max-width:190px" />
-        </div>
-        <div id="list" class="list"></div>
-      </div>
-
-      <!-- DETTAGLIO -->
-      <div class="card">
-        <div class="row space">
-          <h3>Dettaglio</h3>
-          <span id="selMeta" class="muted mini"></span>
-        </div>
-
-        <div id="detailEmpty">
-          <p class="muted">Seleziona una segnalazione dalla lista.</p>
-        </div>
-
-        <div id="detail" class="hidden">
-          <h4 id="dTitle"></h4>
-          <p id="dDesc" class="muted"></p>
-
-          <div id="dPhotoWrap" class="hidden" style="margin:10px 0">
-            <img id="dPhoto" alt="Foto segnalazione" style="max-width:100%; border-radius:14px" />
-          </div>
-
-          <p id="dCoords" class="muted mini"></p>
-
-          <div class="grid2">
-            <label class="field">
-              <span>Stato</span>
-              <select id="dStatus">
-                <option value="new">new</option>
-                <option value="viewed">viewed</option>
-                <option value="work">work</option>
-                <option value="done">done</option>
-              </select>
-            </label>
-
-            <label class="field">
-              <span>Tag</span>
-              <input id="dTags" type="text" placeholder="es. viabilità, decoro..." />
-            </label>
-          </div>
-
-          <label class="field">
-            <span>Nota interna</span>
-            <textarea id="dNote" rows="3"></textarea>
-          </label>
-
-          <label class="field">
-            <span>Risposta (per utente)</span>
-            <textarea id="dReply" rows="3"></textarea>
-          </label>
-
-          <div class="row">
-            <button id="btnSave" class="btn" type="button">Salva</button>
-            <span id="saveStatus" class="muted mini"></span>
-          </div>
-
-          <hr />
-          <h3>Mappa</h3>
-          <div id="map" class="map"></div>
-        </div>
+  <header class="top">
+    <div class="brand">
+      <div class="logo">CH</div>
+      <div>
+        <h1>Admin • Cassino Hub</h1>
+        <p>Approva / Rifiuta • Segnalazioni • Recensioni • Posti</p>
       </div>
     </div>
-  </div>
 
-  <script defer src="./admin.js"></script>
+    <nav class="tabs">
+      <button class="tab active" data-tab="reports">Segnalazioni</button>
+      <button class="tab" data-tab="reviews">Recensioni</button>
+      <button class="tab" data-tab="places">Posti</button>
+    </nav>
+  </header>
+
+  <main class="container">
+    <section class="card">
+      <h2>Connessione</h2>
+      <div class="grid2">
+        <label class="field">
+          <span>Worker base URL</span>
+          <input id="apiBase" type="text" placeholder="https://...workers.dev" />
+        </label>
+
+        <label class="field">
+          <span>ADMIN KEY (X-Admin-Key)</span>
+          <input id="adminKey" type="password" placeholder="la tua chiave admin" />
+        </label>
+      </div>
+
+      <div class="row">
+        <button class="btn" id="btnSave">Salva</button>
+        <button class="btn secondary" id="btnTest">Test</button>
+      </div>
+
+      <p class="muted small" id="testOut"></p>
+    </section>
+
+    <section class="card">
+      <div class="row space">
+        <h2 id="secTitle">Segnalazioni</h2>
+
+        <div class="row" style="gap:10px">
+          <label class="field" style="min-width:200px">
+            <span>Filtro stato</span>
+            <select id="statusFilter">
+              <option value="pending">pending</option>
+              <option value="new" selected>new</option>
+              <option value="approved">approved</option>
+              <option value="rejected">rejected</option>
+              <option value="all">all</option>
+            </select>
+          </label>
+
+          <button class="btn secondary" id="btnReload">Aggiorna</button>
+        </div>
+      </div>
+
+      <div id="list" class="list"></div>
+    </section>
+  </main>
+
+  <script src="./admin.js"></script>
 </body>
 </html>
