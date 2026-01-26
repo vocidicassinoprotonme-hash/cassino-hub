@@ -5,17 +5,16 @@ const $ = (id) => document.getElementById(id);
 const LS = {
   API_BASE: "ch_apiBase_public",
   LOCAL_REPORTS: "ch_localReports_v1",
-  ADMIN_MODE: "ch_adminMode"
 };
 
-// ✅ Worker base (quello che invia su Telegram)
 const DEFAULT_API_BASE = "https://cassino-segnalazioni.vocidicassinoproton-me.workers.dev";
 
-// Stato
 const STATE = {
   apiBase: "",
   localReports: [],
-  pickedPhoto: null, // File
+
+  // segnalazioni
+  pickedPhoto: null,
   pickedLat: null,
   pickedLng: null,
 
@@ -25,12 +24,26 @@ const STATE = {
   pickMarker: null,
   pickLatLng: null,
 
-  // dati (da Worker: solo APPROVATI)
+  // shared pick for modals
+  activePickTarget: null, // "report" | "review" | "place"
+
+  // review modal
+  review: {
+    photo: null,
+    lat: null,
+    lng: null,
+    rating: 5,
+  },
+
+  // place modal
+  place: {
+    photo: null,
+    lat: null,
+    lng: null,
+  },
+
   places: [],
   reviews: [],
-
-  // modal
-  modalEl: null
 };
 
 function load(key, fallback = "") {
@@ -39,229 +52,182 @@ function load(key, fallback = "") {
 function save(key, val) {
   try { localStorage.setItem(key, val); } catch {}
 }
-function del(key) {
-  try { localStorage.removeItem(key); } catch {}
-}
 
-function uid() {
-  return (crypto?.randomUUID?.() || (`id_${Date.now()}_${Math.random().toString(16).slice(2)}`));
-}
-
-function escapeHTML(s){
-  return (s||"").toString().replace(/[&<>"']/g, m => ({
-    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
+function escapeHTML(s) {
+  return (s || "").toString().replace(/[&<>"']/g, m => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;"
   }[m]));
 }
 
-function isNum(n){ return typeof n === "number" && Number.isFinite(n); }
-function clamp(n, a, b){ return Math.max(a, Math.min(b, n)); }
+function isNum(n) { return typeof n === "number" && Number.isFinite(n); }
 
-function setGeoStatus(msg){ if ($("geoStatus")) $("geoStatus").textContent = msg; }
+function setText(id, t) { const el = $(id); if (el) el.textContent = t; }
 
-function getApiBase(){
+function getApiBase() {
   const stored = load(LS.API_BASE, "");
   return (stored || DEFAULT_API_BASE).replace(/\/$/, "");
 }
 
-function catColor(category = "") {
-  const c = (category || "").toString().trim().toLowerCase();
-  // colori base per categorie (puoi cambiarli quando vuoi)
-  if (c.includes("ristor") || c.includes("food") || c.includes("mang")) return "#ffb703";
-  if (c.includes("bar") || c.includes("caff")) return "#fb8500";
-  if (c.includes("nego") || c.includes("shop") || c.includes("acquist")) return "#8ecae6";
-  if (c.includes("cultura") || c.includes("muse") || c.includes("storia")) return "#219ebc";
-  if (c.includes("natura") || c.includes("parco") || c.includes("outdoor")) return "#2a9d8f";
-  if (c.includes("evento")) return "#8338ec";
-  return "#90a4ae";
-}
+function switchTab(view) {
+  document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
+  document.querySelectorAll(`.tab[data-view="${view}"]`).forEach(x => x.classList.add("active"));
 
-function typeColor(type = "") {
-  // tipo diverso: place vs review vs report
-  if (type === "review") return "#ff4d6d";
-  if (type === "place") return "#4cc9f0";
-  return "#adb5bd";
-}
+  document.querySelectorAll(".view").forEach(v => v.classList.add("hidden"));
+  const el = document.getElementById(`view-${view}`);
+  if (el) el.classList.remove("hidden");
 
-function starString(n) {
-  const r = clamp(Number(n || 0), 0, 5);
-  return "⭐".repeat(r);
+  if (view === "map") {
+    ensureMainMap();
+    renderAllPinsOnMainMap();
+  }
 }
 
 /* =========================
    TAB NAV
 ========================= */
-function setupTabs(){
-  document.querySelectorAll(".tab").forEach(btn=>{
-    btn.addEventListener("click", async ()=>{
-      document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
-      btn.classList.add("active");
-
-      const view = btn.dataset.view;
-      document.querySelectorAll(".view").forEach(v=>v.classList.add("hidden"));
-      const el = document.getElementById(`view-${view}`);
-      if(el) el.classList.remove("hidden");
-
-      if(view === "map") {
-        ensureMainMap();
-        await refreshApprovedData(); // carica reviews/places approvati
-        renderAllPinsOnMainMap();
-      }
-
-      if(view === "reviews") {
-        await refreshApprovedData();
-        renderReviews();
-      }
-
-      if(view === "places") {
-        await refreshApprovedData();
-        renderPlaces();
-      }
-    });
+function setupTabs() {
+  document.querySelectorAll(".tab").forEach(btn => {
+    btn.addEventListener("click", () => switchTab(btn.dataset.view));
   });
 }
 
 /* =========================
-   FOTO: gallery / camera (SEGNALAZIONI)
+   FOTO: segnalazioni
 ========================= */
-function setupPhoto(){
-  $("btnPickGallery")?.addEventListener("click", ()=> $("rPhotoGallery")?.click());
-  $("btnPickCamera")?.addEventListener("click", ()=> $("rPhotoCamera")?.click());
+function setupPhoto() {
+  $("btnPickGallery")?.addEventListener("click", () => $("rPhotoGallery")?.click());
+  $("btnPickCamera")?.addEventListener("click", () => $("rPhotoCamera")?.click());
 
-  const onFile = (file)=>{
-    if(!file) return;
+  const onFile = (file) => {
+    if (!file) return;
     STATE.pickedPhoto = file;
-    if ($("photoName")) $("photoName").textContent = `${file.name || "foto"} • ${(file.size/1024).toFixed(0)} KB`;
+    if ($("photoName")) $("photoName").textContent = `${file.name || "foto"} • ${(file.size / 1024).toFixed(0)} KB`;
     const url = URL.createObjectURL(file);
     if ($("photoPreview")) $("photoPreview").src = url;
     $("photoPreviewWrap")?.classList.remove("hidden");
   };
 
-  $("rPhotoGallery")?.addEventListener("change", (e)=> onFile(e.target.files?.[0]));
-  $("rPhotoCamera")?.addEventListener("change", (e)=> onFile(e.target.files?.[0]));
+  $("rPhotoGallery")?.addEventListener("change", (e) => onFile(e.target.files?.[0]));
+  $("rPhotoCamera")?.addEventListener("change", (e) => onFile(e.target.files?.[0]));
 }
 
 /* =========================
-   GEO: GPS + pick su mappa
+   GEO: SEGNAZIONI
 ========================= */
-function setupGeo(){
-  $("btnGeo")?.addEventListener("click", ()=> getGpsForReport());
+function setGeoStatus(msg) { if ($("geoStatus")) $("geoStatus").textContent = msg; }
 
-  $("btnPickOnMap")?.addEventListener("click", ()=> openPickModal({ onPick: (lat,lng)=> {
-    STATE.pickedLat = lat;
-    STATE.pickedLng = lng;
-    if ($("rLat")) $("rLat").value = lat.toFixed(6);
-    if ($("rLng")) $("rLng").value = lng.toFixed(6);
-    setGeoStatus("Selezionato su mappa ✅");
-  }}));
+function setupGeo() {
+  $("btnGeo")?.addEventListener("click", () => {
+    if (!navigator.geolocation) return setGeoStatus("Geolocalizzazione non supportata.");
+    setGeoStatus("Rilevo GPS...");
+    navigator.geolocation.getCurrentPosition((pos) => {
+      STATE.pickedLat = pos.coords.latitude;
+      STATE.pickedLng = pos.coords.longitude;
+      if ($("rLat")) $("rLat").value = STATE.pickedLat.toFixed(6);
+      if ($("rLng")) $("rLng").value = STATE.pickedLng.toFixed(6);
+      setGeoStatus(`OK ✅ ±${Math.round(pos.coords.accuracy)}m`);
+    }, () => setGeoStatus("Permesso negato o errore GPS."), { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+  });
 
+  $("btnPickOnMap")?.addEventListener("click", () => openPickModal("report"));
   $("btnPickCancel")?.addEventListener("click", closePickModal);
 
-  $("btnPickUse")?.addEventListener("click", ()=>{
-    if(!STATE.pickLatLng){
-      alert("Tocca un punto sulla mappa prima di confermare.");
-      return;
-    }
+  $("btnPickUse")?.addEventListener("click", () => {
+    if (!STATE.pickLatLng) return alert("Tocca un punto sulla mappa prima di confermare.");
+
     const { lat, lng } = STATE.pickLatLng;
-    // callback gestita in openPickModal
-    if (STATE.__pickCb) STATE.__pickCb(lat, lng);
+
+    if (STATE.activePickTarget === "report") {
+      STATE.pickedLat = lat; STATE.pickedLng = lng;
+      if ($("rLat")) $("rLat").value = lat.toFixed(6);
+      if ($("rLng")) $("rLng").value = lng.toFixed(6);
+      setGeoStatus("Selezionato su mappa ✅");
+    }
+
+    if (STATE.activePickTarget === "review") {
+      STATE.review.lat = lat; STATE.review.lng = lng;
+      if ($("revLat")) $("revLat").value = lat.toFixed(6);
+      if ($("revLng")) $("revLng").value = lng.toFixed(6);
+      setText("revGeoStatus", "Selezionato su mappa ✅");
+    }
+
+    if (STATE.activePickTarget === "place") {
+      STATE.place.lat = lat; STATE.place.lng = lng;
+      if ($("plLat")) $("plLat").value = lat.toFixed(6);
+      if ($("plLng")) $("plLng").value = lng.toFixed(6);
+      setText("plGeoStatus", "Selezionato su mappa ✅");
+    }
+
     closePickModal();
   });
 }
 
-function getGpsForReport(){
-  if(!navigator.geolocation){
-    setGeoStatus("Geolocalizzazione non supportata.");
-    return;
-  }
-  setGeoStatus("Rilevo GPS...");
-  navigator.geolocation.getCurrentPosition((pos)=>{
-    const lat = pos.coords.latitude;
-    const lng = pos.coords.longitude;
-    STATE.pickedLat = lat;
-    STATE.pickedLng = lng;
-
-    if ($("rLat")) $("rLat").value = lat.toFixed(6);
-    if ($("rLng")) $("rLng").value = lng.toFixed(6);
-    setGeoStatus(`OK ✅ ±${Math.round(pos.coords.accuracy)}m`);
-
-  }, (err)=>{
-    console.warn(err);
-    setGeoStatus("Permesso negato o errore GPS.");
-  }, { enableHighAccuracy:true, timeout:15000, maximumAge:0 });
-}
-
-function openPickModal({ onPick } = {}){
-  STATE.__pickCb = typeof onPick === "function" ? onPick : null;
-
+function openPickModal(target) {
+  STATE.activePickTarget = target;
   $("mapPickModal")?.classList.remove("hidden");
   ensurePickMap();
 
-  if(isNum(STATE.pickedLat) && isNum(STATE.pickedLng)){
-    STATE.pickMap.setView([STATE.pickedLat, STATE.pickedLng], 15);
-    setPickMarker([STATE.pickedLat, STATE.pickedLng]);
-    STATE.pickLatLng = { lat: STATE.pickedLat, lng: STATE.pickedLng };
+  // centro
+  const def = [41.492, 13.832];
+  let lat = def[0], lng = def[1], z = 13;
+
+  if (target === "report" && isNum(STATE.pickedLat) && isNum(STATE.pickedLng)) { lat = STATE.pickedLat; lng = STATE.pickedLng; z = 15; }
+  if (target === "review" && isNum(STATE.review.lat) && isNum(STATE.review.lng)) { lat = STATE.review.lat; lng = STATE.review.lng; z = 15; }
+  if (target === "place" && isNum(STATE.place.lat) && isNum(STATE.place.lng)) { lat = STATE.place.lat; lng = STATE.place.lng; z = 15; }
+
+  STATE.pickMap.setView([lat, lng], z);
+  if (z === 15) {
+    setPickMarker([lat, lng]);
+    STATE.pickLatLng = { lat, lng };
     const hint = $("pickHint");
-    if(hint) hint.textContent = `Scelto: ${STATE.pickedLat.toFixed(6)}, ${STATE.pickedLng.toFixed(6)}`;
-  } else {
-    STATE.pickMap.setView([41.492, 13.832], 13);
-    const hint = $("pickHint");
-    if(hint) hint.textContent = "Tocca la mappa per scegliere";
+    if (hint) hint.textContent = `Scelto: ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
   }
 }
 
-function closePickModal(){
-  $("mapPickModal")?.classList.add("hidden");
-  STATE.__pickCb = null;
-}
+function closePickModal() { $("mapPickModal")?.classList.add("hidden"); }
 
-function ensurePickMap(){
-  if(STATE.pickMap) return;
-  if(!window.L) { alert("Leaflet non caricato."); return; }
+function ensurePickMap() {
+  if (STATE.pickMap) return;
+  if (!window.L) return alert("Leaflet non caricato.");
 
   STATE.pickMap = L.map("mapPick");
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(STATE.pickMap);
 
-  STATE.pickMap.on("click", (e)=>{
+  STATE.pickMap.on("click", (e) => {
     const { lat, lng } = e.latlng;
     STATE.pickLatLng = { lat, lng };
     setPickMarker([lat, lng]);
     const hint = $("pickHint");
-    if(hint) hint.textContent = `Scelto: ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+    if (hint) hint.textContent = `Scelto: ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
   });
 }
 
-function setPickMarker(latlng){
-  if(!STATE.pickMap) return;
-  if(STATE.pickMarker){ STATE.pickMarker.remove(); STATE.pickMarker=null; }
+function setPickMarker(latlng) {
+  if (!STATE.pickMap) return;
+  if (STATE.pickMarker) { STATE.pickMarker.remove(); STATE.pickMarker = null; }
   STATE.pickMarker = L.marker(latlng).addTo(STATE.pickMap);
 }
 
 /* =========================
    REPORTS: local + send
 ========================= */
-function loadLocalReports(){
-  try{
-    STATE.localReports = JSON.parse(load(LS.LOCAL_REPORTS, "[]")) || [];
-  } catch {
-    STATE.localReports = [];
-  }
+function loadLocalReports() {
+  try { STATE.localReports = JSON.parse(load(LS.LOCAL_REPORTS, "[]")) || []; }
+  catch { STATE.localReports = []; }
 }
+function saveLocalReports() { save(LS.LOCAL_REPORTS, JSON.stringify(STATE.localReports)); }
 
-function saveLocalReports(){
-  save(LS.LOCAL_REPORTS, JSON.stringify(STATE.localReports));
-}
-
-function renderLocalReports(){
+function renderLocalReports() {
   const root = $("reportList");
-  if(!root) return;
+  if (!root) return;
   root.innerHTML = "";
 
-  if(!STATE.localReports.length){
+  if (!STATE.localReports.length) {
     root.innerHTML = `<p class="muted">Nessuna segnalazione salvata.</p>`;
     return;
   }
 
-  for(const r of STATE.localReports){
+  for (const r of STATE.localReports) {
     const el = document.createElement("div");
     el.className = "item clickable";
     el.innerHTML = `
@@ -273,29 +239,24 @@ function renderLocalReports(){
       <h4>${escapeHTML(r.title || "")}</h4>
       <p class="muted">${escapeHTML(r.description || "")}</p>
     `;
-    el.addEventListener("click", ()=> openDetailModal({
+    el.addEventListener("click", () => openDetail({
       type: "report",
       title: r.title,
-      subtitle: "Segnalazione locale (salvata sul telefono)",
-      description: r.description,
-      lat: r.lat, lng: r.lng,
-      photoUrl: null
+      badges: ["🚨 Segnalazione"],
+      text: r.description,
+      photoUrl: null,
+      lat: r.lat,
+      lng: r.lng
     }));
     root.appendChild(el);
   }
 }
 
-function setupReportButtons(){
-  $("btnSaveLocal")?.addEventListener("click", ()=>{
+function setupReportButtons() {
+  $("btnSaveLocal")?.addEventListener("click", () => {
     const report = buildReportPayload();
-    if(!report.title || !report.description){
-      alert("Inserisci Titolo e Descrizione.");
-      return;
-    }
-    STATE.localReports.unshift({
-      ...report,
-      photoName: STATE.pickedPhoto?.name || null
-    });
+    if (!report.title || !report.description) return alert("Inserisci Titolo e Descrizione.");
+    STATE.localReports.unshift({ ...report, photoName: STATE.pickedPhoto?.name || null });
     saveLocalReports();
     renderLocalReports();
     alert("Salvata sul telefono ✅");
@@ -303,8 +264,8 @@ function setupReportButtons(){
 
   $("btnSend")?.addEventListener("click", sendReport);
 
-  $("btnExport")?.addEventListener("click", ()=>{
-    const blob = new Blob([JSON.stringify(STATE.localReports, null, 2)], { type:"application/json" });
+  $("btnExport")?.addEventListener("click", () => {
+    const blob = new Blob([JSON.stringify(STATE.localReports, null, 2)], { type: "application/json" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
     a.download = "cassino-hub-segnalazioni-locali.json";
@@ -312,22 +273,22 @@ function setupReportButtons(){
     URL.revokeObjectURL(a.href);
   });
 
-  $("btnClear")?.addEventListener("click", ()=>{
-    if(!confirm("Svuotare l'elenco locale?")) return;
+  $("btnClear")?.addEventListener("click", () => {
+    if (!confirm("Svuotare l'elenco locale?")) return;
     STATE.localReports = [];
     saveLocalReports();
     renderLocalReports();
   });
 }
 
-function buildReportPayload(){
+function buildReportPayload() {
   const title = ($("rTitle")?.value || "").trim();
   const description = ($("rDesc")?.value || "").trim();
   const lat = isNum(STATE.pickedLat) ? STATE.pickedLat : null;
   const lng = isNum(STATE.pickedLng) ? STATE.pickedLng : null;
 
   return {
-    id: uid(),
+    id: (crypto?.randomUUID?.() || (`id_${Date.now()}_${Math.random().toString(16).slice(2)}`)),
     title,
     description,
     lat, lng,
@@ -335,711 +296,549 @@ function buildReportPayload(){
   };
 }
 
-async function sendReport(){
+async function sendReport() {
   const base = getApiBase();
   STATE.apiBase = base;
 
   const title = ($("rTitle")?.value || "").trim();
   const description = ($("rDesc")?.value || "").trim();
-
-  if(!title || !description){
-    alert("Inserisci Titolo e Descrizione.");
-    return;
-  }
+  if (!title || !description) return alert("Inserisci Titolo e Descrizione.");
 
   const payload = buildReportPayload();
 
   const btn = $("btnSend");
-  if(btn){ btn.disabled = true; btn.textContent = "Invio..."; }
+  if (btn) { btn.disabled = true; btn.textContent = "Invio..."; }
 
-  try{
-    // ✅ multipart/form-data (gestisce foto facilmente)
+  try {
     const fd = new FormData();
     fd.append("id", payload.id);
     fd.append("title", payload.title);
 
-    // ✅ IMPORTANTISSIMO: il Worker si aspetta "desc"
+    // ✅ IMPORTANTISSIMO: Worker legge desc (e accetta anche description)
     fd.append("desc", payload.description);
+    fd.append("description", payload.description);
 
-    if(isNum(payload.lat)) fd.append("lat", String(payload.lat));
-    if(isNum(payload.lng)) fd.append("lng", String(payload.lng));
+    if (isNum(payload.lat)) fd.append("lat", String(payload.lat));
+    if (isNum(payload.lng)) fd.append("lng", String(payload.lng));
     fd.append("createdAt", payload.createdAt);
-    if(STATE.pickedPhoto) fd.append("photo", STATE.pickedPhoto);
+    if (STATE.pickedPhoto) fd.append("photo", STATE.pickedPhoto);
 
-    const res = await fetch(`${base}/submit`, { method:"POST", body: fd });
-    const data = await res.json().catch(()=>null);
+    const res = await fetch(`${base}/submit`, { method: "POST", body: fd });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || (data && data.ok === false)) throw new Error("Submit failed");
 
-    if(!res.ok || (data && data.ok === false)){
-      throw new Error(`Submit failed: ${res.status}`);
-    }
-
-    STATE.localReports.unshift({
-      ...payload,
-      photoName: STATE.pickedPhoto?.name || null
-    });
+    STATE.localReports.unshift({ ...payload, photoName: STATE.pickedPhoto?.name || null });
     saveLocalReports();
     renderLocalReports();
 
     alert("Inviata ✅ (notifica Telegram dal Worker)");
 
-    // reset form
-    if($("rTitle")) $("rTitle").value = "";
-    if($("rDesc")) $("rDesc").value = "";
+    // reset
+    if ($("rTitle")) $("rTitle").value = "";
+    if ($("rDesc")) $("rDesc").value = "";
     STATE.pickedPhoto = null;
     $("photoPreviewWrap")?.classList.add("hidden");
-    if($("photoPreview")) $("photoPreview").removeAttribute("src");
-    if($("photoName")) $("photoName").textContent = "";
-    STATE.pickedLat = null;
-    STATE.pickedLng = null;
-    if($("rLat")) $("rLat").value = "";
-    if($("rLng")) $("rLng").value = "";
+    if ($("photoPreview")) $("photoPreview").removeAttribute("src");
+    if ($("photoName")) $("photoName").textContent = "";
+    STATE.pickedLat = null; STATE.pickedLng = null;
+    if ($("rLat")) $("rLat").value = "";
+    if ($("rLng")) $("rLng").value = "";
     setGeoStatus("Non rilevata");
 
-  } catch(e){
+    // refresh map pins
+    renderAllPinsOnMainMap();
+
+  } catch (e) {
     console.warn(e);
-    // Salvataggio locale di sicurezza
-    STATE.localReports.unshift({
-      ...payload,
-      photoName: STATE.pickedPhoto?.name || null
-    });
+    STATE.localReports.unshift({ ...payload, photoName: STATE.pickedPhoto?.name || null });
     saveLocalReports();
     renderLocalReports();
     alert("Invio non riuscito. Ho salvato in locale ✅");
   } finally {
-    if(btn){ btn.disabled = false; btn.textContent = "Invia"; }
+    if (btn) { btn.disabled = false; btn.textContent = "Invia"; }
   }
 }
 
 /* =========================
-   REVIEWS + PLACES (da Worker APPROVATI)
+   REVIEWS + PLACES: LOAD FROM WORKER (public)
 ========================= */
-async function refreshApprovedData(){
+async function loadDataFromWorker() {
   const base = getApiBase();
   STATE.apiBase = base;
 
-  // carichiamo SOLO approvati
-  try{
-    const [placesRes, reviewsRes] = await Promise.all([
-      fetch(`${base}/places`, { cache:"no-store" }),
-      fetch(`${base}/reviews`, { cache:"no-store" })
+  try {
+    const [rev, pl] = await Promise.all([
+      fetch(`${base}/public/reviews?limit=400`, { cache: "no-store" }).then(r => r.ok ? r.json() : null),
+      fetch(`${base}/public/places?limit=400`, { cache: "no-store" }).then(r => r.ok ? r.json() : null),
     ]);
 
-    const placesJson = placesRes.ok ? await placesRes.json().catch(()=>null) : null;
-    const reviewsJson = reviewsRes.ok ? await reviewsRes.json().catch(()=>null) : null;
+    STATE.reviews = Array.isArray(rev?.rows) ? rev.rows : (Array.isArray(rev?.results) ? rev.results : (Array.isArray(rev?.ok ? rev : null) ? rev : (Array.isArray(rev?.rows) ? rev.rows : (Array.isArray(rev?.rows) ? rev.rows : (Array.isArray(rev?.rows) ? rev.rows : (Array.isArray(rev?.rows) ? rev.rows : [])) ))));
+    if (!Array.isArray(STATE.reviews)) STATE.reviews = Array.isArray(rev?.rows) ? rev.rows : (Array.isArray(rev?.ok ? rev.rows : null) ? rev.rows : []);
 
-    STATE.places = Array.isArray(placesJson?.rows) ? placesJson.rows : [];
-    STATE.reviews = Array.isArray(reviewsJson?.rows) ? reviewsJson.rows : [];
-  } catch(e){
-    console.warn("refreshApprovedData failed", e);
-    STATE.places = [];
+    // sicurezza: lo schema del worker è {ok:true, rows:[...]}
+    STATE.reviews = Array.isArray(rev?.rows) ? rev.rows : [];
+    STATE.places  = Array.isArray(pl?.rows) ? pl.rows : [];
+
+  } catch (e) {
+    console.warn("loadDataFromWorker failed", e);
     STATE.reviews = [];
-  }
-}
-
-/* =========================
-   REVIEWS UI
-========================= */
-function setupReviewButtons(){
-  $("btnAddReview")?.addEventListener("click", ()=> openReviewFormModal());
-}
-
-function renderReviews(){
-  const root = $("reviewsList");
-  if(!root) return;
-  root.innerHTML = "";
-
-  if(!STATE.reviews.length){
-    root.innerHTML = `<p class="muted">Nessuna recensione approvata al momento.</p>`;
-    return;
+    STATE.places = [];
   }
 
-  for(const r of STATE.reviews){
-    const el = document.createElement("div");
-    el.className = "item clickable";
-    const stars = starString(r.rating);
-    el.innerHTML = `
-      <div class="badges">
-        <span class="badge">${stars || "recensione"}</span>
-        ${r.category ? `<span class="badge">${escapeHTML(r.category)}</span>` : ``}
-        ${r.placeName ? `<span class="badge">${escapeHTML(r.placeName)}</span>` : ``}
-        ${(isNum(r.lat)&&isNum(r.lng)) ? `<span class="badge">📍</span>` : ``}
-      </div>
-      <h4>${escapeHTML(r.title || r.placeName || "Recensione")}</h4>
-      <p class="muted">${escapeHTML((r.description || "").slice(0, 140))}${(r.description||"").length>140?"…":""}</p>
-    `;
-    el.addEventListener("click", ()=> openDetailModal({
-      type: "review",
-      title: r.title || r.placeName || "Recensione",
-      subtitle: `${starString(r.rating)} • ${r.placeName || ""}`.trim(),
-      description: r.description || "",
-      category: r.category || "",
-      lat: r.lat, lng: r.lng,
-      photoUrl: r.photoUrl || null
-    }));
-    root.appendChild(el);
-  }
+  renderReviews();
+  renderPlaces();
+  renderAllPinsOnMainMap();
 }
 
-function openReviewFormModal(){
-  const html = `
-    <div style="display:flex;gap:10px;align-items:center;justify-content:space-between;">
-      <div>
-        <div style="font-size:18px;font-weight:800;">⭐ Aggiungi recensione</div>
-        <div class="muted small">Verrà inviata all’Admin. Comparirà solo dopo approvazione.</div>
-      </div>
-      <button class="btn secondary" id="mClose">Chiudi</button>
-    </div>
-
-    <div style="height:10px"></div>
-
-    <label class="field">
-      <span>Nome locale / attività</span>
-      <input id="mReviewPlace" type="text" placeholder="Es. Bar Roma / Negozio / Altro" maxlength="80">
-    </label>
-
-    <label class="field">
-      <span>Titolo recensione</span>
-      <input id="mReviewTitle" type="text" placeholder="Es. Locale consigliato" maxlength="80">
-    </label>
-
-    <label class="field">
-      <span>Testo</span>
-      <textarea id="mReviewDesc" rows="5" placeholder="Scrivi la tua esperienza..."></textarea>
-    </label>
-
-    <div class="grid2">
-      <div class="field">
-        <span>Stelle</span>
-        <div id="mStarsRow" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
-        <div class="muted small" id="mStarsHint">Seleziona da 1 a 5</div>
-      </div>
-
-      <label class="field">
-        <span>Categoria</span>
-        <input id="mReviewCat" type="text" placeholder="Es. ristorante, bar, negozio, cultura...">
-      </label>
-    </div>
-
-    <div class="grid2">
-      <div class="field">
-        <span>Foto (opzionale)</span>
-        <div class="row">
-          <button class="btn secondary" type="button" id="mPickPhoto">📷 Seleziona foto</button>
-          <span class="muted small" id="mPhotoName"></span>
-        </div>
-        <input id="mPhotoInput" type="file" accept="image/*" style="display:none" />
-        <img id="mPhotoPrev" class="hidden" alt="" style="width:100%;border-radius:14px;border:1px solid var(--line);margin-top:8px">
-      </div>
-
-      <div class="field">
-        <span>Posizione (opzionale)</span>
-        <div class="row">
-          <button class="btn" type="button" id="mGps">Rileva GPS</button>
-          <button class="btn secondary" type="button" id="mPickMap">🗺️ Seleziona su mappa</button>
-        </div>
-        <div class="row">
-          <span class="muted" id="mGeoHint">Non rilevata</span>
-        </div>
-        <div class="row">
-          <input id="mLat" type="text" placeholder="Lat" readonly />
-          <input id="mLng" type="text" placeholder="Lng" readonly />
-        </div>
-      </div>
-    </div>
-
-    <div class="row" style="justify-content:flex-end;">
-      <button class="btn" type="button" id="mSend">Invia recensione</button>
-    </div>
-  `;
-
-  openModal(html);
-
-  let pickedFile = null;
-  let pickedLat = null;
-  let pickedLng = null;
-  let rating = 0;
-
-  // stelle
-  const starsRow = $("mStarsRow");
-  const hint = $("mStarsHint");
-  const drawStars = ()=>{
-    if(!starsRow) return;
-    starsRow.innerHTML = "";
-    for(let i=1;i<=5;i++){
-      const b = document.createElement("button");
-      b.type = "button";
-      b.className = "btn secondary";
-      b.textContent = (i<=rating) ? "⭐" : "☆";
-      b.addEventListener("click", ()=>{
-        rating = i;
-        if(hint) hint.textContent = `Selezionate: ${rating}/5`;
-        drawStars();
-      });
-      starsRow.appendChild(b);
-    }
-  };
-  drawStars();
-
-  $("mClose")?.addEventListener("click", closeModal);
-
-  $("mPickPhoto")?.addEventListener("click", ()=> $("mPhotoInput")?.click());
-  $("mPhotoInput")?.addEventListener("change", (e)=>{
-    const f = e.target.files?.[0];
-    if(!f) return;
-    pickedFile = f;
-    if($("mPhotoName")) $("mPhotoName").textContent = `${f.name || "foto"} • ${(f.size/1024).toFixed(0)} KB`;
-    const url = URL.createObjectURL(f);
-    const img = $("mPhotoPrev");
-    if(img){
-      img.src = url;
-      img.classList.remove("hidden");
-    }
-  });
-
-  $("mGps")?.addEventListener("click", ()=>{
-    if(!navigator.geolocation){
-      if($("mGeoHint")) $("mGeoHint").textContent = "GPS non supportato";
-      return;
-    }
-    if($("mGeoHint")) $("mGeoHint").textContent = "Rilevo GPS...";
-    navigator.geolocation.getCurrentPosition((pos)=>{
-      pickedLat = pos.coords.latitude;
-      pickedLng = pos.coords.longitude;
-      if($("mLat")) $("mLat").value = pickedLat.toFixed(6);
-      if($("mLng")) $("mLng").value = pickedLng.toFixed(6);
-      if($("mGeoHint")) $("mGeoHint").textContent = `OK ✅ ±${Math.round(pos.coords.accuracy)}m`;
-    }, ()=>{
-      if($("mGeoHint")) $("mGeoHint").textContent = "Permesso negato o errore GPS";
-    }, { enableHighAccuracy:true, timeout:15000, maximumAge:0 });
-  });
-
-  $("mPickMap")?.addEventListener("click", ()=>{
-    openPickModal({ onPick: (lat,lng)=>{
-      pickedLat = lat; pickedLng = lng;
-      if($("mLat")) $("mLat").value = lat.toFixed(6);
-      if($("mLng")) $("mLng").value = lng.toFixed(6);
-      if($("mGeoHint")) $("mGeoHint").textContent = "Selezionato su mappa ✅";
-    }});
-  });
-
-  $("mSend")?.addEventListener("click", async ()=>{
-    const base = getApiBase();
-    const placeName = ($("mReviewPlace")?.value || "").trim();
-    const title = ($("mReviewTitle")?.value || "").trim();
-    const desc = ($("mReviewDesc")?.value || "").trim();
-    const category = ($("mReviewCat")?.value || "").trim();
-
-    if(!placeName || !desc || !rating){
-      alert("Inserisci Nome locale, Testo e seleziona le Stelle (1–5).");
-      return;
-    }
-
-    const btn = $("mSend");
-    if(btn){ btn.disabled = true; btn.textContent = "Invio..."; }
-
-    try{
-      const fd = new FormData();
-      fd.append("name", placeName);
-      if(title) fd.append("title", title);
-      fd.append("desc", desc);
-      fd.append("rating", String(rating));
-      if(category) fd.append("category", category);
-      if(isNum(pickedLat)) fd.append("lat", String(pickedLat));
-      if(isNum(pickedLng)) fd.append("lng", String(pickedLng));
-      if(pickedFile) fd.append("photo", pickedFile);
-
-      const res = await fetch(`${base}/review/submit`, { method:"POST", body: fd });
-      const data = await res.json().catch(()=>null);
-      if(!res.ok || data?.ok === false) throw new Error("review submit failed");
-
-      alert("Recensione inviata ✅ (in attesa di approvazione)");
-      closeModal();
-
-      // ricarico (probabilmente non apparirà subito perché pending)
-      await refreshApprovedData();
-      renderReviews();
-      if(STATE.mainMap) renderAllPinsOnMainMap();
-    } catch(e){
-      console.warn(e);
-      alert("Invio recensione non riuscito. Riprova.");
-    } finally {
-      if(btn){ btn.disabled = false; btn.textContent = "Invia recensione"; }
-    }
-  });
-}
-
-/* =========================
-   PLACES UI
-========================= */
-function setupPlaceButtons(){
-  $("btnAddPlace")?.addEventListener("click", ()=> openPlaceFormModal());
-}
-
-function renderPlaces(){
+function renderPlaces() {
   const root = $("placesList");
-  if(!root) return;
+  if (!root) return;
   root.innerHTML = "";
 
-  if(!STATE.places.length){
-    root.innerHTML = `<p class="muted">Nessun posto approvato al momento.</p>`;
+  if (!STATE.places.length) {
+    root.innerHTML = `<p class="muted">Nessun posto approvato.</p>`;
     return;
   }
 
-  for(const p of STATE.places){
+  for (const p of STATE.places) {
     const el = document.createElement("div");
     el.className = "item clickable";
     el.innerHTML = `
       <div class="badges">
-        <span class="badge">${escapeHTML(p.category || "posto")}</span>
-        ${(isNum(p.lat)&&isNum(p.lng)) ? `<span class="badge">📍</span>` : ``}
-        ${p.photoUrl ? `<span class="badge">📷</span>` : ``}
+        <span class="badge">📍 ${escapeHTML(p.category || "posto")}</span>
+        ${isNum(p.lat) && isNum(p.lng) ? `<span class="badge">🗺️</span>` : ``}
+        ${p.photoUrl ? `<span class="badge">🖼️</span>` : ``}
       </div>
-      <h4>${escapeHTML(p.title || "Posto")}</h4>
-      <p class="muted">${escapeHTML((p.description || "").slice(0, 140))}${(p.description||"").length>140?"…":""}</p>
+      <div class="row space" style="gap:12px; align-items:flex-start">
+        <div style="flex:1">
+          <h4>${escapeHTML(p.name || "")}</h4>
+          <p class="muted">${escapeHTML((p.description || "").slice(0, 160))}${(p.description || "").length > 160 ? "…" : ""}</p>
+        </div>
+        ${p.photoUrl ? `<img class="thumb" src="${escapeHTML(p.photoUrl)}" alt="">` : ``}
+      </div>
     `;
-    el.addEventListener("click", ()=> openDetailModal({
+
+    el.addEventListener("click", () => openDetail({
       type: "place",
-      title: p.title || "Posto da visitare",
-      subtitle: p.category ? `Categoria: ${p.category}` : "",
-      description: p.description || "",
-      category: p.category || "",
-      lat: p.lat, lng: p.lng,
-      photoUrl: p.photoUrl || null
+      title: p.name || "Posto",
+      badges: [`📍 ${p.category || "posto"}`],
+      text: p.description || "",
+      photoUrl: p.photoUrl || null,
+      lat: p.lat, lng: p.lng
     }));
+
     root.appendChild(el);
   }
 }
 
-function openPlaceFormModal(){
-  const html = `
-    <div style="display:flex;gap:10px;align-items:center;justify-content:space-between;">
-      <div>
-        <div style="font-size:18px;font-weight:800;">📍 Aggiungi posto da visitare</div>
-        <div class="muted small">Verrà inviato all’Admin. Comparirà solo dopo approvazione.</div>
+function renderReviews() {
+  const root = $("reviewsList");
+  if (!root) return;
+  root.innerHTML = "";
+
+  if (!STATE.reviews.length) {
+    root.innerHTML = `<p class="muted">Nessuna recensione approvata.</p>`;
+    return;
+  }
+
+  for (const r of STATE.reviews) {
+    const rating = Math.max(1, Math.min(5, Number(r.rating || 5)));
+    const stars = "⭐".repeat(rating);
+
+    const el = document.createElement("div");
+    el.className = "item clickable";
+    el.innerHTML = `
+      <div class="badges">
+        <span class="badge">${stars}</span>
+        ${r.place ? `<span class="badge">🏷️ ${escapeHTML(r.place)}</span>` : ``}
+        ${isNum(r.lat) && isNum(r.lng) ? `<span class="badge">🗺️</span>` : ``}
+        ${r.photoUrl ? `<span class="badge">🖼️</span>` : ``}
       </div>
-      <button class="btn secondary" id="mClose">Chiudi</button>
-    </div>
-
-    <div style="height:10px"></div>
-
-    <label class="field">
-      <span>Nome / Titolo</span>
-      <input id="mPlaceTitle" type="text" placeholder="Es. Abbazia di Montecassino" maxlength="90">
-    </label>
-
-    <label class="field">
-      <span>Descrizione</span>
-      <textarea id="mPlaceDesc" rows="6" placeholder="Spiega perché è interessante, cosa vedere, info utili..."></textarea>
-    </label>
-
-    <div class="grid2">
-      <label class="field">
-        <span>Categoria</span>
-        <input id="mPlaceCat" type="text" placeholder="Es. cultura, natura, eventi...">
-      </label>
-
-      <div class="field">
-        <span>Foto (consigliata)</span>
-        <div class="row">
-          <button class="btn secondary" type="button" id="mPickPhoto">📷 Seleziona foto</button>
-          <span class="muted small" id="mPhotoName"></span>
+      <div class="row space" style="gap:12px; align-items:flex-start">
+        <div style="flex:1">
+          <h4>${escapeHTML(r.title || "Recensione")}</h4>
+          <p class="muted">${escapeHTML((r.text || "").slice(0, 160))}${(r.text || "").length > 160 ? "…" : ""}</p>
         </div>
-        <input id="mPhotoInput" type="file" accept="image/*" style="display:none" />
-        <img id="mPhotoPrev" class="hidden" alt="" style="width:100%;border-radius:14px;border:1px solid var(--line);margin-top:8px">
+        ${r.photoUrl ? `<img class="thumb" src="${escapeHTML(r.photoUrl)}" alt="">` : ``}
       </div>
-    </div>
+    `;
 
-    <div class="field">
-      <span>Posizione (opzionale)</span>
-      <div class="row">
-        <button class="btn" type="button" id="mGps">Rileva GPS</button>
-        <button class="btn secondary" type="button" id="mPickMap">🗺️ Seleziona su mappa</button>
-      </div>
-      <div class="row">
-        <span class="muted" id="mGeoHint">Non rilevata</span>
-      </div>
-      <div class="row">
-        <input id="mLat" type="text" placeholder="Lat" readonly />
-        <input id="mLng" type="text" placeholder="Lng" readonly />
-      </div>
-    </div>
+    el.addEventListener("click", () => openDetail({
+      type: "review",
+      title: r.title || "Recensione",
+      badges: [stars, r.place ? `🏷️ ${r.place}` : "⭐ Recensione"],
+      text: r.text || "",
+      photoUrl: r.photoUrl || null,
+      lat: r.lat, lng: r.lng
+    }));
 
-    <div class="row" style="justify-content:flex-end;">
-      <button class="btn" type="button" id="mSend">Invia posto</button>
-    </div>
-  `;
+    root.appendChild(el);
+  }
+}
 
-  openModal(html);
+/* =========================
+   DETAILS MODAL
+========================= */
+function openDetail({ title, badges, text, photoUrl, lat, lng }) {
+  setText("dTitle", title || "Dettaglio");
+  const b = $("dBadges");
+  if (b) b.innerHTML = (badges || []).map(x => `<span class="badge">${escapeHTML(x)}</span>`).join(" ");
 
-  let pickedFile = null;
-  let pickedLat = null;
-  let pickedLng = null;
-
-  $("mClose")?.addEventListener("click", closeModal);
-
-  $("mPickPhoto")?.addEventListener("click", ()=> $("mPhotoInput")?.click());
-  $("mPhotoInput")?.addEventListener("change", (e)=>{
-    const f = e.target.files?.[0];
-    if(!f) return;
-    pickedFile = f;
-    if($("mPhotoName")) $("mPhotoName").textContent = `${f.name || "foto"} • ${(f.size/1024).toFixed(0)} KB`;
-    const url = URL.createObjectURL(f);
-    const img = $("mPhotoPrev");
-    if(img){
-      img.src = url;
+  const img = $("dImg");
+  if (img) {
+    if (photoUrl) {
+      img.src = photoUrl;
       img.classList.remove("hidden");
+    } else {
+      img.classList.add("hidden");
+      img.removeAttribute("src");
     }
-  });
+  }
 
-  $("mGps")?.addEventListener("click", ()=>{
-    if(!navigator.geolocation){
-      if($("mGeoHint")) $("mGeoHint").textContent = "GPS non supportato";
-      return;
+  const t = $("dText");
+  if (t) t.textContent = text || "";
+
+  const gps = $("dGps");
+  if (gps) {
+    if (isNum(lat) && isNum(lng)) {
+      gps.textContent = `📍 ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+    } else {
+      gps.textContent = "📍 Nessuna posizione";
     }
-    if($("mGeoHint")) $("mGeoHint").textContent = "Rilevo GPS...";
-    navigator.geolocation.getCurrentPosition((pos)=>{
-      pickedLat = pos.coords.latitude;
-      pickedLng = pos.coords.longitude;
-      if($("mLat")) $("mLat").value = pickedLat.toFixed(6);
-      if($("mLng")) $("mLng").value = pickedLng.toFixed(6);
-      if($("mGeoHint")) $("mGeoHint").textContent = `OK ✅ ±${Math.round(pos.coords.accuracy)}m`;
-    }, ()=>{
-      if($("mGeoHint")) $("mGeoHint").textContent = "Permesso negato o errore GPS";
-    }, { enableHighAccuracy:true, timeout:15000, maximumAge:0 });
-  });
+  }
 
-  $("mPickMap")?.addEventListener("click", ()=>{
-    openPickModal({ onPick: (lat,lng)=>{
-      pickedLat = lat; pickedLng = lng;
-      if($("mLat")) $("mLat").value = lat.toFixed(6);
-      if($("mLng")) $("mLng").value = lng.toFixed(6);
-      if($("mGeoHint")) $("mGeoHint").textContent = "Selezionato su mappa ✅";
-    }});
-  });
+  $("detailModal")?.classList.remove("hidden");
+}
 
-  $("mSend")?.addEventListener("click", async ()=>{
-    const base = getApiBase();
-    const title = ($("mPlaceTitle")?.value || "").trim();
-    const desc = ($("mPlaceDesc")?.value || "").trim();
-    const category = ($("mPlaceCat")?.value || "").trim();
-
-    if(!title || !desc){
-      alert("Inserisci Nome/Titolo e Descrizione.");
-      return;
-    }
-
-    const btn = $("mSend");
-    if(btn){ btn.disabled = true; btn.textContent = "Invio..."; }
-
-    try{
-      const fd = new FormData();
-      fd.append("title", title);
-      fd.append("desc", desc);
-      if(category) fd.append("category", category);
-      if(isNum(pickedLat)) fd.append("lat", String(pickedLat));
-      if(isNum(pickedLng)) fd.append("lng", String(pickedLng));
-      if(pickedFile) fd.append("photo", pickedFile);
-
-      const res = await fetch(`${base}/place/submit`, { method:"POST", body: fd });
-      const data = await res.json().catch(()=>null);
-      if(!res.ok || data?.ok === false) throw new Error("place submit failed");
-
-      alert("Posto inviato ✅ (in attesa di approvazione)");
-      closeModal();
-
-      await refreshApprovedData();
-      renderPlaces();
-      if(STATE.mainMap) renderAllPinsOnMainMap();
-    } catch(e){
-      console.warn(e);
-      alert("Invio posto non riuscito. Riprova.");
-    } finally {
-      if(btn){ btn.disabled = false; btn.textContent = "Invia posto"; }
-    }
-  });
+function setupDetailModal() {
+  $("btnCloseDetailModal")?.addEventListener("click", () => $("detailModal")?.classList.add("hidden"));
 }
 
 /* =========================
-   MODAL (riusabile)
+   REVIEW MODAL (submit to worker)
 ========================= */
-function openModal(innerHtml){
-  closeModal();
+function setupReviewModal() {
+  $("btnAddReview")?.addEventListener("click", () => {
+    resetReviewModal();
+    $("reviewModal")?.classList.remove("hidden");
+  });
+  $("btnCloseReviewModal")?.addEventListener("click", () => $("reviewModal")?.classList.add("hidden"));
 
-  const overlay = document.createElement("div");
-  overlay.style.position = "fixed";
-  overlay.style.inset = "0";
-  overlay.style.background = "rgba(0,0,0,.55)";
-  overlay.style.display = "flex";
-  overlay.style.alignItems = "center";
-  overlay.style.justifyContent = "center";
-  overlay.style.padding = "14px";
-  overlay.style.zIndex = "99999";
-
-  const box = document.createElement("div");
-  box.style.background = "rgba(16,24,42,.96)";
-  box.style.border = "1px solid var(--line)";
-  box.style.borderRadius = "16px";
-  box.style.width = "min(980px, 100%)";
-  box.style.maxHeight = "86vh";
-  box.style.overflow = "auto";
-  box.style.padding = "14px";
-  box.innerHTML = innerHtml;
-
-  overlay.addEventListener("click", (e)=>{
-    if(e.target === overlay) closeModal();
+  // stars
+  const starsWrap = $("revStars");
+  starsWrap?.querySelectorAll(".star").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const v = Number(btn.dataset.v || 5);
+      STATE.review.rating = Math.max(1, Math.min(5, v));
+      starsWrap.dataset.value = String(STATE.review.rating);
+      setText("revStarsHint", `${STATE.review.rating} stelle`);
+      paintStars();
+    });
   });
 
-  overlay.appendChild(box);
-  document.body.appendChild(overlay);
-  STATE.modalEl = overlay;
-
-  // ESC chiude
-  window.addEventListener("keydown", onEscClose);
-  function onEscClose(ev){
-    if(ev.key === "Escape") closeModal();
+  function paintStars() {
+    const v = STATE.review.rating;
+    starsWrap?.querySelectorAll(".star").forEach(b => {
+      const bv = Number(b.dataset.v || 0);
+      b.classList.toggle("on", bv <= v);
+    });
   }
-  STATE.__escHandler = onEscClose;
+  paintStars();
+
+  // photo
+  $("btnRevPick")?.addEventListener("click", () => $("revPhoto")?.click());
+  $("revPhoto")?.addEventListener("change", (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    STATE.review.photo = file;
+    setText("revPhotoName", `${file.name || "foto"} • ${(file.size / 1024).toFixed(0)} KB`);
+    const url = URL.createObjectURL(file);
+    if ($("revPhotoPrev")) $("revPhotoPrev").src = url;
+    $("revPhotoWrap")?.classList.remove("hidden");
+  });
+
+  // gps
+  $("btnRevGeo")?.addEventListener("click", () => {
+    if (!navigator.geolocation) return setText("revGeoStatus", "Geolocalizzazione non supportata.");
+    setText("revGeoStatus", "Rilevo GPS...");
+    navigator.geolocation.getCurrentPosition((pos) => {
+      STATE.review.lat = pos.coords.latitude;
+      STATE.review.lng = pos.coords.longitude;
+      if ($("revLat")) $("revLat").value = STATE.review.lat.toFixed(6);
+      if ($("revLng")) $("revLng").value = STATE.review.lng.toFixed(6);
+      setText("revGeoStatus", `OK ✅ ±${Math.round(pos.coords.accuracy)}m`);
+    }, () => setText("revGeoStatus", "Permesso negato o errore GPS."), { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+  });
+
+  $("btnRevPickMap")?.addEventListener("click", () => openPickModal("review"));
+
+  // submit
+  $("btnSendReview")?.addEventListener("click", sendReview);
 }
 
-function closeModal(){
-  if(STATE.modalEl){
-    STATE.modalEl.remove();
-    STATE.modalEl = null;
-  }
-  if(STATE.__escHandler){
-    window.removeEventListener("keydown", STATE.__escHandler);
-    STATE.__escHandler = null;
-  }
+function resetReviewModal() {
+  if ($("revTitle")) $("revTitle").value = "";
+  if ($("revPlace")) $("revPlace").value = "";
+  if ($("revText")) $("revText").value = "";
+  STATE.review.photo = null;
+  STATE.review.lat = null;
+  STATE.review.lng = null;
+  STATE.review.rating = 5;
+  const starsWrap = $("revStars");
+  if (starsWrap) starsWrap.dataset.value = "5";
+  setText("revStarsHint", "5 stelle");
+  starsWrap?.querySelectorAll(".star").forEach(b => b.classList.add("on"));
+
+  $("revPhotoWrap")?.classList.add("hidden");
+  if ($("revPhotoPrev")) $("revPhotoPrev").removeAttribute("src");
+  setText("revPhotoName", "");
+  if ($("revLat")) $("revLat").value = "";
+  if ($("revLng")) $("revLng").value = "";
+  setText("revGeoStatus", "Non rilevata");
+  if ($("revPhoto")) $("revPhoto").value = "";
 }
 
-function openDetailModal(item){
-  const img = item.photoUrl ? `
-    <img src="${escapeHTML(item.photoUrl)}" alt="" style="width:100%;border-radius:14px;border:1px solid var(--line);margin:10px 0">
-  ` : "";
+async function sendReview() {
+  const base = getApiBase();
 
-  const coords = (isNum(item.lat) && isNum(item.lng))
-    ? `<div class="muted small">📍 ${item.lat.toFixed(6)}, ${item.lng.toFixed(6)}</div>`
-    : `<div class="muted small">📍 Posizione non disponibile</div>`;
+  const title = ($("revTitle")?.value || "").trim();
+  const place = ($("revPlace")?.value || "").trim();
+  const text  = ($("revText")?.value || "").trim();
+  const rating = STATE.review.rating || 5;
 
-  const html = `
-    <div style="display:flex;gap:10px;align-items:center;justify-content:space-between;">
-      <div>
-        <div style="font-size:18px;font-weight:800;">${escapeHTML(item.title || "")}</div>
-        ${item.subtitle ? `<div class="muted small">${escapeHTML(item.subtitle)}</div>` : ``}
-        ${item.category ? `<div class="muted small">Categoria: ${escapeHTML(item.category)}</div>` : ``}
-      </div>
-      <button class="btn secondary" id="mClose">Chiudi</button>
-    </div>
+  if (!title || !text) return alert("Inserisci Titolo e Testo.");
 
-    ${img}
+  const btn = $("btnSendReview");
+  if (btn) { btn.disabled = true; btn.textContent = "Invio..."; }
 
-    <div style="white-space:pre-wrap;line-height:1.35;margin-top:8px;">${escapeHTML(item.description || "")}</div>
-    <div style="height:8px"></div>
-    ${coords}
-    ${(isNum(item.lat)&&isNum(item.lng)) ? `<div class="row" style="justify-content:flex-end;margin-top:10px;">
-      <a class="btn secondary" target="_blank" rel="noopener" href="https://maps.google.com/?q=${item.lat.toFixed(6)},${item.lng.toFixed(6)}">🗺 Apri su Google Maps</a>
-    </div>` : ``}
-  `;
-  openModal(html);
-  $("mClose")?.addEventListener("click", closeModal);
+  try {
+    const fd = new FormData();
+    fd.append("title", title);
+    fd.append("place", place);
+    fd.append("text", text);
+    fd.append("rating", String(rating));
+    if (isNum(STATE.review.lat)) fd.append("lat", String(STATE.review.lat));
+    if (isNum(STATE.review.lng)) fd.append("lng", String(STATE.review.lng));
+    if (STATE.review.photo) fd.append("photo", STATE.review.photo);
+
+    const res = await fetch(`${base}/review/submit`, { method: "POST", body: fd });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || data?.ok === false) throw new Error("review submit failed");
+
+    alert("Recensione inviata ✅ (in attesa di approvazione)");
+    $("reviewModal")?.classList.add("hidden");
+    resetReviewModal();
+
+    // Dopo approvazione comparirà: intanto ricarichiamo per aggiornare
+    await loadDataFromWorker();
+
+  } catch (e) {
+    console.warn(e);
+    alert("Invio recensione non riuscito ❌");
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "Invia (in approvazione)"; }
+  }
 }
 
 /* =========================
-   MAIN MAP (view map)
+   PLACE MODAL (submit to worker)
 ========================= */
-function ensureMainMap(){
-  if(STATE.mainMap) return;
+function setupPlaceModal() {
+  $("btnAddPlace")?.addEventListener("click", () => {
+    resetPlaceModal();
+    $("placeModal")?.classList.remove("hidden");
+  });
+  $("btnClosePlaceModal")?.addEventListener("click", () => $("placeModal")?.classList.add("hidden"));
+
+  $("btnPlPick")?.addEventListener("click", () => $("plPhoto")?.click());
+  $("plPhoto")?.addEventListener("change", (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    STATE.place.photo = file;
+    setText("plPhotoName", `${file.name || "immagine"} • ${(file.size / 1024).toFixed(0)} KB`);
+    const url = URL.createObjectURL(file);
+    if ($("plPhotoPrev")) $("plPhotoPrev").src = url;
+    $("plPhotoWrap")?.classList.remove("hidden");
+  });
+
+  $("btnPlGeo")?.addEventListener("click", () => {
+    if (!navigator.geolocation) return setText("plGeoStatus", "Geolocalizzazione non supportata.");
+    setText("plGeoStatus", "Rilevo GPS...");
+    navigator.geolocation.getCurrentPosition((pos) => {
+      STATE.place.lat = pos.coords.latitude;
+      STATE.place.lng = pos.coords.longitude;
+      if ($("plLat")) $("plLat").value = STATE.place.lat.toFixed(6);
+      if ($("plLng")) $("plLng").value = STATE.place.lng.toFixed(6);
+      setText("plGeoStatus", `OK ✅ ±${Math.round(pos.coords.accuracy)}m`);
+    }, () => setText("plGeoStatus", "Permesso negato o errore GPS."), { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+  });
+
+  $("btnPlPickMap")?.addEventListener("click", () => openPickModal("place"));
+
+  $("btnSendPlace")?.addEventListener("click", sendPlace);
+}
+
+function resetPlaceModal() {
+  if ($("plName")) $("plName").value = "";
+  if ($("plCategory")) $("plCategory").value = "";
+  if ($("plDesc")) $("plDesc").value = "";
+  STATE.place.photo = null;
+  STATE.place.lat = null;
+  STATE.place.lng = null;
+
+  $("plPhotoWrap")?.classList.add("hidden");
+  if ($("plPhotoPrev")) $("plPhotoPrev").removeAttribute("src");
+  setText("plPhotoName", "");
+  if ($("plLat")) $("plLat").value = "";
+  if ($("plLng")) $("plLng").value = "";
+  setText("plGeoStatus", "Non rilevata");
+  if ($("plPhoto")) $("plPhoto").value = "";
+}
+
+async function sendPlace() {
+  const base = getApiBase();
+
+  const name = ($("plName")?.value || "").trim();
+  const category = ($("plCategory")?.value || "").trim();
+  const description = ($("plDesc")?.value || "").trim();
+
+  if (!name || !description) return alert("Inserisci Nome e Descrizione.");
+
+  const btn = $("btnSendPlace");
+  if (btn) { btn.disabled = true; btn.textContent = "Invio..."; }
+
+  try {
+    const fd = new FormData();
+    fd.append("name", name);
+    fd.append("category", category || "posto");
+    fd.append("description", description);
+    if (isNum(STATE.place.lat)) fd.append("lat", String(STATE.place.lat));
+    if (isNum(STATE.place.lng)) fd.append("lng", String(STATE.place.lng));
+    if (STATE.place.photo) fd.append("photo", STATE.place.photo);
+
+    const res = await fetch(`${base}/place/submit`, { method: "POST", body: fd });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || data?.ok === false) throw new Error("place submit failed");
+
+    alert("Posto inviato ✅ (in attesa di approvazione)");
+    $("placeModal")?.classList.add("hidden");
+    resetPlaceModal();
+
+    await loadDataFromWorker();
+
+  } catch (e) {
+    console.warn(e);
+    alert("Invio posto non riuscito ❌");
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "Invia (in approvazione)"; }
+  }
+}
+
+/* =========================
+   MAIN MAP
+========================= */
+function ensureMainMap() {
+  if (STATE.mainMap) return;
   const el = $("map");
-  if(!el || !window.L) return;
+  if (!el || !window.L) return;
 
   STATE.mainMap = L.map("map");
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(STATE.mainMap);
   STATE.mainMap.setView([41.492, 13.832], 13);
 }
 
-function clearMarkers(){
-  if(!STATE.mainMap) return;
-  STATE.mainMap.eachLayer(layer=>{
-    // lascia tileLayer
-    if(layer instanceof L.Marker) STATE.mainMap.removeLayer(layer);
-    if(layer instanceof L.CircleMarker) STATE.mainMap.removeLayer(layer);
+function makePinIcon(kind) {
+  const cls = kind === "place" ? "pin pin-place"
+            : kind === "review" ? "pin pin-review"
+            : "pin pin-report";
+  const txt = kind === "place" ? "📍" : kind === "review" ? "⭐" : "🚨";
+
+  return L.divIcon({
+    className: cls,
+    html: `<div class="pinInner">${txt}</div>`,
+    iconSize: [28, 28],
+    iconAnchor: [14, 28],
+    popupAnchor: [0, -26]
   });
 }
 
-function renderAllPinsOnMainMap(){
-  if(!STATE.mainMap) return;
-  clearMarkers();
-
-  // posti (circleMarker)
-  for(const p of STATE.places){
-    if(isNum(p.lat) && isNum(p.lng)){
-      const color = catColor(p.category);
-      const popup = buildPopupHTML({
-        title: p.title,
-        subtitle: p.category,
-        description: p.description,
-        photoUrl: p.photoUrl
-      });
-      L.circleMarker([p.lat, p.lng], {
-        radius: 9,
-        color,
-        weight: 2,
-        fillColor: color,
-        fillOpacity: 0.85
-      }).addTo(STATE.mainMap).bindPopup(popup);
-    }
-  }
-
-  // recensioni (circleMarker, colore “review” + categoria)
-  for(const r of STATE.reviews){
-    if(isNum(r.lat) && isNum(r.lng)){
-      const color = catColor(r.category) || typeColor("review");
-      const popup = buildPopupHTML({
-        title: (r.title || "Recensione"),
-        subtitle: `${starString(r.rating)} • ${r.placeName || ""}`.trim(),
-        description: r.description,
-        photoUrl: r.photoUrl
-      });
-      L.circleMarker([r.lat, r.lng], {
-        radius: 8,
-        color,
-        weight: 2,
-        fillColor: color,
-        fillOpacity: 0.75
-      }).addTo(STATE.mainMap).bindPopup(popup);
-    }
-  }
-
-  // segnalazioni locali (marker classico)
-  for(const s of STATE.localReports){
-    if(isNum(s.lat) && isNum(s.lng)){
-      const popup = buildPopupHTML({
-        title: s.title,
-        subtitle: "Segnalazione locale",
-        description: s.description,
-        photoUrl: null
-      });
-      L.marker([s.lat, s.lng]).addTo(STATE.mainMap).bindPopup(popup);
-    }
-  }
-}
-
-function buildPopupHTML({ title, subtitle, description, photoUrl }){
-  const img = photoUrl ? `<img src="${escapeHTML(photoUrl)}" alt="" style="width:100%;border-radius:10px;border:1px solid rgba(255,255,255,.12);margin-top:8px">` : "";
+function popupHtml({ title, subtitle, text, photoUrl }) {
+  const img = photoUrl ? `<img src="${escapeHTML(photoUrl)}" style="width:100%;border-radius:12px;border:1px solid rgba(255,255,255,.12);margin:6px 0 8px">` : "";
   return `
-    <div style="min-width:220px;">
-      <div style="font-weight:800;">${escapeHTML(title || "")}</div>
-      ${subtitle ? `<div style="opacity:.85;font-size:12px;">${escapeHTML(subtitle)}</div>` : ``}
-      ${description ? `<div style="opacity:.92;font-size:12px;margin-top:6px;">${escapeHTML((description||"").slice(0,220))}${(description||"").length>220?"…":""}</div>` : ``}
+    <div style="min-width:220px;max-width:280px">
+      <b>${escapeHTML(title || "")}</b><br>
+      ${subtitle ? `<span class="muted small">${escapeHTML(subtitle)}</span><br>` : ``}
       ${img}
+      <div class="muted" style="margin-top:4px">${escapeHTML((text || "").slice(0, 180))}${(text || "").length > 180 ? "…" : ""}</div>
     </div>
   `;
+}
+
+function renderAllPinsOnMainMap() {
+  if (!STATE.mainMap) return;
+
+  // pulizia marker
+  STATE.mainMap.eachLayer(layer => {
+    if (layer instanceof L.Marker) STATE.mainMap.removeLayer(layer);
+  });
+
+  // posti
+  for (const p of STATE.places) {
+    if (isNum(p.lat) && isNum(p.lng)) {
+      const m = L.marker([p.lat, p.lng], { icon: makePinIcon("place") })
+        .addTo(STATE.mainMap)
+        .bindPopup(popupHtml({
+          title: p.name,
+          subtitle: p.category || "posto",
+          text: p.description,
+          photoUrl: p.photoUrl
+        }));
+      m.on("click", () => {});
+    }
+  }
+
+  // recensioni
+  for (const r of STATE.reviews) {
+    if (isNum(r.lat) && isNum(r.lng)) {
+      const rating = Math.max(1, Math.min(5, Number(r.rating || 5)));
+      const stars = "⭐".repeat(rating);
+      const m = L.marker([r.lat, r.lng], { icon: makePinIcon("review") })
+        .addTo(STATE.mainMap)
+        .bindPopup(popupHtml({
+          title: r.title || "Recensione",
+          subtitle: r.place ? `${stars} • ${r.place}` : stars,
+          text: r.text,
+          photoUrl: r.photoUrl
+        }));
+      m.on("dblclick", () => openDetail({
+        title: r.title,
+        badges: [stars, r.place ? `🏷️ ${r.place}` : "⭐ Recensione"],
+        text: r.text,
+        photoUrl: r.photoUrl,
+        lat: r.lat, lng: r.lng
+      }));
+    }
+  }
+
+  // segnalazioni locali (solo quelle dell’utente)
+  for (const s of STATE.localReports) {
+    if (isNum(s.lat) && isNum(s.lng)) {
+      L.marker([s.lat, s.lng], { icon: makePinIcon("report") })
+        .addTo(STATE.mainMap)
+        .bindPopup(popupHtml({
+          title: s.title || "Segnalazione",
+          subtitle: "Segnalazione (locale)",
+          text: s.description || "",
+          photoUrl: null
+        }));
+    }
+  }
 }
 
 /* =========================
    BOOT
 ========================= */
-async function boot(){
+function boot() {
   const base = getApiBase();
   STATE.apiBase = base;
   save(LS.API_BASE, base);
@@ -1052,15 +851,14 @@ async function boot(){
   renderLocalReports();
   setupReportButtons();
 
-  setupReviewButtons();
-  setupPlaceButtons();
-
-  // primo caricamento (reviews/places approvati)
-  await refreshApprovedData();
-  renderPlaces();
-  renderReviews();
+  setupDetailModal();
+  setupReviewModal();
+  setupPlaceModal();
 
   setGeoStatus("Non rilevata");
+
+  // carica places/reviews approvati dal worker
+  loadDataFromWorker().catch(() => {});
 }
 
 boot();
