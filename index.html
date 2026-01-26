@@ -47,7 +47,6 @@
         </label>
 
         <div class="grid2">
-          <!-- FOTO: GALLERIA + CAMERA -->
           <div class="field">
             <span>Foto (opzionale)</span>
 
@@ -56,18 +55,15 @@
               <button id="btnPickCamera" class="btn secondary" type="button">📷 Scatta</button>
             </div>
 
-            <!-- Input reali nascosti -->
             <input id="rPhotoGallery" type="file" accept="image/*" style="display:none" />
             <input id="rPhotoCamera" type="file" accept="image/*" capture="environment" style="display:none" />
 
-            <!-- Preview -->
             <div id="photoPreviewWrap" class="hidden" style="margin-top:10px">
               <span id="photoName" class="muted small"></span>
               <img id="photoPreview" alt="" style="width:100%;border-radius:14px;border:1px solid var(--line);margin-top:8px">
             </div>
           </div>
 
-          <!-- POSIZIONE: GPS + SELEZIONE SU MAPPA -->
           <div class="field">
             <span>Posizione</span>
             <div class="row">
@@ -90,7 +86,7 @@
         </div>
 
         <p class="muted small">
-          Nota: se non abiliti l’invio a un endpoint, “Invia” sarà disattivato.
+          Nota: “Invia” usa il Worker (con notifica Telegram).
         </p>
       </div>
 
@@ -108,6 +104,7 @@
         <h2>Recensioni</h2>
         <button id="btnAddReview" class="btn secondary" type="button">+ Aggiungi</button>
       </div>
+      <div class="muted small">Mostra solo recensioni <b>approvate</b>.</div>
       <div id="reviewsList" class="list"></div>
     </section>
 
@@ -117,6 +114,7 @@
         <h2>Posti da visitare</h2>
         <button id="btnAddPlace" class="btn secondary" type="button">+ Aggiungi</button>
       </div>
+      <div class="muted small">Mostra solo posti <b>approvati</b>.</div>
       <div id="placesList" class="list"></div>
     </section>
 
@@ -124,18 +122,22 @@
     <section id="view-map" class="view hidden">
       <h2>Mappa</h2>
       <div class="card">
+        <div class="legend">
+          <span class="pill p-place">📍 Posti</span>
+          <span class="pill p-review">⭐ Recensioni</span>
+          <span class="pill p-report">🚨 Segnalazioni</span>
+        </div>
         <div id="map" class="map"></div>
-        <p class="muted small">Mostra: posti, recensioni, segnalazioni locali (se hanno coordinate).</p>
+        <p class="muted small">PIN per categoria: clicca per vedere foto + descrizione.</p>
       </div>
     </section>
 
-    <!-- ADMIN -->
+    <!-- ADMIN (come prima, lo lasciamo per ora) -->
     <section id="view-admin" class="view hidden">
       <h2>Modalità Admin</h2>
       <div class="card">
         <p class="muted">
-          Come nella tua Smart Home Finds: il token resta solo nel browser (localStorage).
-          Serve per aggiornare i file JSON in /data (places.json e reviews.json).
+          Qui possiamo aggiungere anche l’approvazione Recensioni/Posti nel prossimo step (admin.html).
         </p>
 
         <label class="field">
@@ -152,7 +154,7 @@
 
         <label class="field">
           <span>Repo (owner/repo)</span>
-          <input id="ghRepo" type="text" placeholder="sagearthstudio/cassino-hub" />
+          <input id="ghRepo" type="text" placeholder="vocidicassinoprotonme-hash/cassino-hub" />
         </label>
 
         <div class="row">
@@ -163,19 +165,165 @@
 
   </main>
 
-  <!-- MODAL: SELEZIONE PUNTO SU MAPPA (per segnalazione) -->
-  <div id="mapPickModal" class="hidden" style="
-    position:fixed; inset:0; background:rgba(0,0,0,.55);
-    display:flex; align-items:center; justify-content:center; padding:14px; z-index:9999;">
-    <div style="background:rgba(16,24,42,.95); border:1px solid var(--line); border-radius:16px; width:min(980px,100%); overflow:hidden;">
-      <div style="padding:12px 14px; border-bottom:1px solid var(--line); display:flex; gap:10px; align-items:center;">
+  <!-- MODAL: PICK MAP (segnalazione) -->
+  <div id="mapPickModal" class="hidden modalBackdrop">
+    <div class="modalPanel">
+      <div class="modalHead">
         <b>📍 Seleziona punto sulla mappa</b>
         <span class="muted small" id="pickHint" style="margin-left:auto;">Tocca la mappa per scegliere</span>
       </div>
       <div id="mapPick" style="height:60vh; min-height:320px;"></div>
-      <div style="padding:12px 14px; border-top:1px solid var(--line); display:flex; gap:10px; justify-content:flex-end;">
+      <div class="modalFoot">
         <button type="button" id="btnPickCancel" class="btn secondary">Annulla</button>
         <button type="button" id="btnPickUse" class="btn">Usa questo punto</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: ADD REVIEW -->
+  <div id="reviewModal" class="hidden modalBackdrop">
+    <div class="modalPanel">
+      <div class="modalHead">
+        <b>⭐ Nuova recensione</b>
+        <button type="button" class="btn ghost" id="btnCloseReviewModal">✕</button>
+      </div>
+
+      <div class="modalBody">
+        <label class="field">
+          <span>Titolo</span>
+          <input id="revTitle" type="text" placeholder="Es. Ottimo aperitivo" maxlength="80">
+        </label>
+
+        <label class="field">
+          <span>Locale / Attività (opzionale)</span>
+          <input id="revPlace" type="text" placeholder="Nome locale o attività" maxlength="80">
+        </label>
+
+        <div class="field">
+          <span>Valutazione</span>
+          <div class="stars" id="revStars" data-value="5">
+            <button type="button" class="star" data-v="1">★</button>
+            <button type="button" class="star" data-v="2">★</button>
+            <button type="button" class="star" data-v="3">★</button>
+            <button type="button" class="star" data-v="4">★</button>
+            <button type="button" class="star" data-v="5">★</button>
+          </div>
+          <div class="muted small" id="revStarsHint">5 stelle</div>
+        </div>
+
+        <label class="field">
+          <span>Testo</span>
+          <textarea id="revText" rows="5" placeholder="Scrivi la tua recensione..."></textarea>
+        </label>
+
+        <div class="grid2">
+          <div class="field">
+            <span>Foto (opzionale)</span>
+            <div class="row">
+              <button id="btnRevPick" class="btn secondary" type="button">📷 Scegli foto</button>
+              <input id="revPhoto" type="file" accept="image/*" style="display:none">
+            </div>
+            <div id="revPhotoWrap" class="hidden" style="margin-top:10px">
+              <span id="revPhotoName" class="muted small"></span>
+              <img id="revPhotoPrev" alt="" style="width:100%;border-radius:14px;border:1px solid var(--line);margin-top:8px">
+            </div>
+          </div>
+
+          <div class="field">
+            <span>Posizione (opzionale)</span>
+            <div class="row">
+              <button id="btnRevGeo" class="btn" type="button">Rileva GPS</button>
+              <button id="btnRevPickMap" class="btn secondary" type="button">🗺️ Scegli su mappa</button>
+            </div>
+            <div class="row">
+              <span id="revGeoStatus" class="muted">Non rilevata</span>
+            </div>
+            <div class="row">
+              <input id="revLat" type="text" placeholder="Lat" readonly />
+              <input id="revLng" type="text" placeholder="Lng" readonly />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modalFoot">
+        <button type="button" id="btnSendReview" class="btn">Invia (in approvazione)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: ADD PLACE -->
+  <div id="placeModal" class="hidden modalBackdrop">
+    <div class="modalPanel">
+      <div class="modalHead">
+        <b>📍 Nuovo posto da visitare</b>
+        <button type="button" class="btn ghost" id="btnClosePlaceModal">✕</button>
+      </div>
+
+      <div class="modalBody">
+        <label class="field">
+          <span>Nome</span>
+          <input id="plName" type="text" placeholder="Es. Abbazia di Montecassino" maxlength="80">
+        </label>
+
+        <label class="field">
+          <span>Categoria</span>
+          <input id="plCategory" type="text" placeholder="Es. Cultura, Natura, Cibo..." maxlength="40">
+        </label>
+
+        <label class="field">
+          <span>Descrizione</span>
+          <textarea id="plDesc" rows="5" placeholder="Descrivi perché vale la pena visitarlo..."></textarea>
+        </label>
+
+        <div class="grid2">
+          <div class="field">
+            <span>Immagine (opzionale)</span>
+            <div class="row">
+              <button id="btnPlPick" class="btn secondary" type="button">🖼️ Scegli immagine</button>
+              <input id="plPhoto" type="file" accept="image/*" style="display:none">
+            </div>
+            <div id="plPhotoWrap" class="hidden" style="margin-top:10px">
+              <span id="plPhotoName" class="muted small"></span>
+              <img id="plPhotoPrev" alt="" style="width:100%;border-radius:14px;border:1px solid var(--line);margin-top:8px">
+            </div>
+          </div>
+
+          <div class="field">
+            <span>Posizione</span>
+            <div class="row">
+              <button id="btnPlGeo" class="btn" type="button">Rileva GPS</button>
+              <button id="btnPlPickMap" class="btn secondary" type="button">🗺️ Scegli su mappa</button>
+            </div>
+            <div class="row">
+              <span id="plGeoStatus" class="muted">Non rilevata</span>
+            </div>
+            <div class="row">
+              <input id="plLat" type="text" placeholder="Lat" readonly />
+              <input id="plLng" type="text" placeholder="Lng" readonly />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modalFoot">
+        <button type="button" id="btnSendPlace" class="btn">Invia (in approvazione)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: DETAILS -->
+  <div id="detailModal" class="hidden modalBackdrop">
+    <div class="modalPanel">
+      <div class="modalHead">
+        <b id="dTitle">Dettaglio</b>
+        <button type="button" class="btn ghost" id="btnCloseDetailModal">✕</button>
+      </div>
+      <div class="modalBody">
+        <div id="dBadges" class="badges" style="margin-bottom:10px"></div>
+        <img id="dImg" class="hidden" alt="" style="width:100%;border-radius:14px;border:1px solid var(--line);margin:8px 0 12px">
+        <div id="dText" class="muted"></div>
+        <div id="dGps" class="muted small" style="margin-top:10px"></div>
       </div>
     </div>
   </div>
@@ -188,4 +336,3 @@
   </script>
 </body>
 </html>
-```0
