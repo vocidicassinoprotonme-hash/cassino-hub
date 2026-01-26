@@ -3,73 +3,273 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Cassino Hub • Admin</title>
-  <link rel="stylesheet" href="../styles.css" />
-  <link rel="icon" href="../assets/icon-192.png">
+  <title>Admin • Cassino Hub</title>
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+
+  <style>
+    :root{
+      --bg:#0b1220; --card:#0f1b2d; --card2:#10233a; --txt:#e8f0ff; --muted:#a9b6cf;
+      --btn:#1f6feb; --btn2:#20344f; --danger:#d64b4b; --border:#1b2e4a;
+      --radius:16px;
+    }
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu; background:linear-gradient(180deg,#0b1220,#0a1628); color:var(--txt);}
+    .top{display:flex;gap:12px;align-items:center;padding:16px 18px;}
+    .logo{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;background:#0d2a4a;border:1px solid var(--border); font-weight:700;}
+    .title h1{margin:0;font-size:18px;}
+    .title p{margin:2px 0 0;color:var(--muted);font-size:12px;}
+
+    .tabs{display:flex;gap:10px;padding:0 18px 12px;}
+    .tab{border:1px solid var(--border);background:transparent;color:var(--txt);padding:8px 12px;border-radius:999px;cursor:pointer}
+    .tab.active{background:var(--btn2);border-color:#2b4d7a}
+
+    .wrap{padding:0 18px 22px; max-width:1200px; margin:0 auto;}
+    .card{background:rgba(15,27,45,.82); border:1px solid var(--border); border-radius:var(--radius); padding:14px; box-shadow:0 10px 26px rgba(0,0,0,.25); }
+    .row{display:flex; gap:12px; flex-wrap:wrap; align-items:center;}
+    .space{justify-content:space-between}
+    .grid2{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
+    @media(max-width:900px){.grid2{grid-template-columns:1fr}}
+    .field{display:flex;flex-direction:column; gap:6px; flex:1}
+    .field span{color:var(--muted);font-size:12px}
+    input,textarea,select{
+      background:rgba(10,18,32,.7); color:var(--txt);
+      border:1px solid var(--border); border-radius:12px; padding:10px 12px; outline:none;
+    }
+    textarea{resize:vertical}
+    .btn{background:var(--btn); border:none; color:white; padding:10px 14px; border-radius:12px; cursor:pointer; font-weight:600}
+    .btn.secondary{background:var(--btn2); border:1px solid var(--border)}
+    .btn.danger{background:var(--danger)}
+    .muted{color:var(--muted)}
+    .mini{font-size:12px}
+    .hidden{display:none !important;}
+
+    .layout{display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top:12px;}
+    @media(max-width:1100px){.layout{grid-template-columns:1fr}}
+
+    .list{display:flex; flex-direction:column; gap:10px;}
+    .item{
+      background:rgba(16,35,58,.55);
+      border:1px solid var(--border);
+      border-radius:14px;
+      padding:12px;
+      cursor:pointer;
+    }
+    .item:hover{border-color:#2d5d97}
+    .badges{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px;}
+    .badge{
+      font-size:12px; color:var(--muted);
+      padding:4px 10px; border-radius:999px;
+      border:1px solid var(--border);
+      background:rgba(10,18,32,.55);
+    }
+    .map{height:320px; border-radius:14px; border:1px solid var(--border); overflow:hidden;}
+    img.photo{width:100%; max-height:320px; object-fit:cover; border-radius:14px; border:1px solid var(--border)}
+  </style>
 </head>
+
 <body>
-  <header class="top">
-    <div class="brand">
-      <div class="logo">CH</div>
-      <div>
-        <h1>Admin • Cassino Hub</h1>
-        <p>Approva / Rifiuta • Segnalazioni • Recensioni • Posti</p>
-      </div>
+  <div class="top">
+    <div class="logo">CH</div>
+    <div class="title">
+      <h1>Admin • Cassino Hub</h1>
+      <p>Approva / Rifiuta • Segnalazioni • Recensioni • Posti</p>
     </div>
+  </div>
 
-    <nav class="tabs">
-      <button class="tab active" data-tab="reports">Segnalazioni</button>
-      <button class="tab" data-tab="reviews">Recensioni</button>
-      <button class="tab" data-tab="places">Posti</button>
-    </nav>
-  </header>
+  <div class="tabs">
+    <button class="tab active" data-view="reports">Segnalazioni</button>
+    <button class="tab" data-view="reviews">Recensioni</button>
+    <button class="tab" data-view="places">Posti</button>
+  </div>
 
-  <main class="container">
-    <section class="card">
-      <h2>Connessione</h2>
+  <div class="wrap">
+
+    <!-- Connessione -->
+    <div class="card">
+      <h2 style="margin:0 0 10px">Connessione</h2>
       <div class="grid2">
         <label class="field">
           <span>Worker base URL</span>
-          <input id="apiBase" type="text" placeholder="https://...workers.dev" />
+          <input id="apiBase" type="text" placeholder="https://.....workers.dev" />
         </label>
-
         <label class="field">
           <span>ADMIN KEY (X-Admin-Key)</span>
-          <input id="adminKey" type="password" placeholder="la tua chiave admin" />
+          <input id="adminKey" type="password" placeholder="********" />
         </label>
       </div>
 
-      <div class="row">
-        <button class="btn" id="btnSave">Salva</button>
-        <button class="btn secondary" id="btnTest">Test</button>
+      <div class="row" style="margin-top:10px">
+        <button id="btnSaveKey" class="btn" type="button">Salva</button>
+        <button id="btnTest" class="btn secondary" type="button">Test</button>
+        <button id="btnRefresh" class="btn secondary" type="button">Carica segnalazioni</button>
+        <button id="btnExport" class="btn secondary" type="button">Esporta JSON</button>
+        <span id="connStatus" class="muted mini"></span>
+      </div>
+    </div>
+
+    <!-- VIEW: REPORTS -->
+    <div id="view-reports" class="card" style="margin-top:12px">
+      <div class="row space">
+        <h2 style="margin:0">Segnalazioni</h2>
+        <label class="field" style="max-width:420px">
+          <span>Cerca</span>
+          <input id="q" type="text" placeholder="cerca in titolo/descrizione..." />
+        </label>
       </div>
 
-      <p class="muted small" id="testOut"></p>
-    </section>
+      <div class="layout">
+        <div>
+          <div id="list" class="list"></div>
+        </div>
 
-    <section class="card">
+        <div>
+          <div id="detailEmpty" class="muted">Seleziona una segnalazione a sinistra.</div>
+
+          <div id="detail" class="hidden">
+            <div class="row space">
+              <div>
+                <div id="selMeta" class="muted mini"></div>
+                <h3 id="dTitle" style="margin:6px 0 6px"></h3>
+              </div>
+              <button id="btnSaveReport" class="btn" type="button">Salva in alto</button>
+            </div>
+
+            <p id="dDesc" class="muted" style="margin-top:6px"></p>
+            <div id="dCoords" class="muted mini" style="margin:6px 0 10px"></div>
+
+            <div id="dPhotoWrap" class="hidden" style="margin:10px 0">
+              <img id="dPhoto" class="photo" alt="foto segnalazione" />
+            </div>
+
+            <div class="grid2">
+              <label class="field">
+                <span>Status</span>
+                <select id="dStatus">
+                  <option value="new">new</option>
+                  <option value="open">open</option>
+                  <option value="working">working</option>
+                  <option value="done">done</option>
+                  <option value="rejected">rejected</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>Tags</span>
+                <input id="dTags" type="text" placeholder="es. buche, luci, degrado..." />
+              </label>
+            </div>
+
+            <label class="field" style="margin-top:10px">
+              <span>Nota interna (admin)</span>
+              <textarea id="dNote" rows="3"></textarea>
+            </label>
+
+            <label class="field" style="margin-top:10px">
+              <span>Risposta (eventuale)</span>
+              <textarea id="dReply" rows="3"></textarea>
+            </label>
+
+            <div class="row" style="margin-top:10px">
+              <span id="saveStatus" class="muted mini"></span>
+            </div>
+
+            <hr style="border-color:var(--border); margin:14px 0;">
+            <h3 style="margin:0 0 10px">Mappa</h3>
+            <div id="mapReport" class="map"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- VIEW: CONTENT (REVIEWS + PLACES) -->
+    <div id="view-content" class="card hidden" style="margin-top:12px">
       <div class="row space">
-        <h2 id="secTitle">Segnalazioni</h2>
-
-        <div class="row" style="gap:10px">
-          <label class="field" style="min-width:200px">
-            <span>Filtro stato</span>
-            <select id="statusFilter">
-              <option value="pending">pending</option>
-              <option value="new" selected>new</option>
-              <option value="approved">approved</option>
-              <option value="rejected">rejected</option>
-              <option value="all">all</option>
-            </select>
-          </label>
-
-          <button class="btn secondary" id="btnReload">Aggiorna</button>
+        <h2 id="contentTitle" style="margin:0">Contenuti</h2>
+        <div class="row">
+          <button id="btnAddPlace" class="btn hidden" type="button">+ Aggiungi Posto</button>
+          <button id="btnAddReview" class="btn hidden" type="button">+ Aggiungi Recensione</button>
         </div>
       </div>
 
-      <div id="list" class="list"></div>
-    </section>
-  </main>
+      <div class="list" style="margin-top:12px">
+        <div id="placesList" class="list hidden"></div>
+        <div id="reviewsList" class="list hidden"></div>
+      </div>
+
+      <div id="editor" class="card hidden" style="margin-top:12px; background:rgba(16,35,58,.55)">
+        <div class="row space">
+          <h3 id="edTitle" style="margin:0">Editor</h3>
+          <button id="btnCloseEditor" class="btn danger" type="button">Chiudi</button>
+        </div>
+
+        <div class="grid2" style="margin-top:10px">
+          <label class="field">
+            <span>Nome / Titolo</span>
+            <input id="edName" type="text" />
+          </label>
+
+          <label class="field">
+            <span>Categoria / Luogo</span>
+            <input id="edCat" type="text" placeholder="es. cultura / ristorante" />
+          </label>
+        </div>
+
+        <label class="field" style="margin-top:10px">
+          <span>Descrizione / Testo</span>
+          <textarea id="edDesc" rows="4"></textarea>
+        </label>
+
+        <div class="grid2" style="margin-top:10px">
+          <label class="field">
+            <span>Lat</span>
+            <input id="edLat" type="number" step="0.000001" />
+          </label>
+          <label class="field">
+            <span>Lng</span>
+            <input id="edLng" type="number" step="0.000001" />
+          </label>
+        </div>
+
+        <div id="edRatingWrap" class="hidden" style="margin-top:10px">
+          <label class="field">
+            <span>Rating (1-5)</span>
+            <input id="edRating" type="number" min="1" max="5" step="1" />
+          </label>
+        </div>
+
+        <div class="row" style="margin-top:10px">
+          <button id="btnPickOnMap" class="btn secondary" type="button">📍 Seleziona su mappa</button>
+          <button id="btnSaveItem" class="btn" type="button">💾 Salva</button>
+          <button id="btnDeleteItem" class="btn danger" type="button">Elimina</button>
+        </div>
+
+        <p id="edStatus" class="muted mini" style="margin-top:8px"></p>
+
+        <hr style="border-color:var(--border); margin:14px 0;">
+        <h3 style="margin:0 0 10px">Mappa</h3>
+        <div id="mapEd" class="map"></div>
+
+        <div class="row" style="margin-top:10px">
+          <label class="field" style="flex:1">
+            <span>GitHub Token (Contents: Read/Write)</span>
+            <input id="ghToken" type="password" placeholder="ghp_... / github_pat_..." />
+          </label>
+          <label class="field" style="flex:1">
+            <span>Repo (owner/repo)</span>
+            <input id="ghRepo" type="text" placeholder="vocidicassinoprotonme-hash/cassino-hub" />
+          </label>
+        </div>
+
+        <div class="row" style="margin-top:10px">
+          <button id="btnLoadContent" class="btn secondary" type="button">Carica da GitHub</button>
+          <button id="btnPublish" class="btn" type="button">🚀 Pubblica su GitHub</button>
+          <span id="ghStatus" class="muted mini"></span>
+        </div>
+      </div>
+    </div>
+
+  </div>
 
   <script src="./admin.js"></script>
 </body>
