@@ -1,3 +1,5 @@
+/* Cassino Hub - admin/admin.js (COMPLETO) */
+
 const $ = (id) => document.getElementById(id);
 
 const LS = {
@@ -50,7 +52,7 @@ function oneLine(s, max = 120) {
   return t.length > max ? t.slice(0, max - 1) + "…" : t;
 }
 function nowISO() { return new Date().toISOString(); }
-function uid() { return crypto.randomUUID(); }
+function uid() { return crypto?.randomUUID?.() || (`id_${Date.now()}_${Math.random().toString(16).slice(2)}`); }
 
 function headersAdmin() {
   return { "X-Admin-Key": STATE.adminKey };
@@ -75,7 +77,7 @@ function bootSettings() {
 
 function wireCoreButtons() {
   $("btnSaveKey")?.addEventListener("click", () => {
-    STATE.apiBase = ($("apiBase")?.value || "").trim();
+    STATE.apiBase = ($("apiBase")?.value || "").trim().replace(/\/$/, "");
     STATE.adminKey = ($("adminKey")?.value || "").trim();
     save(LS.API_BASE, STATE.apiBase);
     save(LS.ADMIN_KEY, STATE.adminKey);
@@ -93,7 +95,6 @@ function wireCoreButtons() {
   $("btnExport")?.addEventListener("click", exportReports);
 
   $("q")?.addEventListener("input", renderReportList);
-
   $("btnSave")?.addEventListener("click", saveSelectedReport);
 }
 
@@ -114,7 +115,7 @@ function ensureGithubBox() {
 
     <label class="field">
       <span>GitHub Token (Contents: Read/Write)</span>
-      <input id="ghToken" type="password" placeholder="ghp_... / github_pat_..." />
+      <input id="ghToken" type="password" placeholder="github_pat_... / ghp_..." />
     </label>
 
     <label class="field">
@@ -242,8 +243,9 @@ function showManager(which) {
 
 // ================= REPORTS =================
 async function loadReports() {
-  const base = ($("apiBase")?.value || "").trim();
+  const base = ($("apiBase")?.value || "").trim().replace(/\/$/, "");
   const key = ($("adminKey")?.value || "").trim();
+
   STATE.apiBase = base;
   STATE.adminKey = key;
   save(LS.API_BASE, base);
@@ -277,7 +279,6 @@ function renderReportList() {
   root.innerHTML = "";
 
   const q = ($("q")?.value || "").toLowerCase().trim();
-
   const items = STATE.reports.filter(r => {
     const t = `${r.title || ""} ${r.description || ""}`.toLowerCase();
     return !q || t.includes(q);
@@ -320,7 +321,8 @@ function selectReport(id) {
 
   if (r.photoKey) {
     $("dPhotoWrap")?.classList.remove("hidden");
-    if ($("dPhoto")) $("dPhoto").src = `${STATE.apiBase}/photo?key=${encodeURIComponent(r.photoKey)}&ak=${encodeURIComponent(STATE.adminKey)}`;
+    if ($("dPhoto")) $("dPhoto").src =
+      `${STATE.apiBase}/photo?key=${encodeURIComponent(r.photoKey)}&ak=${encodeURIComponent(STATE.adminKey)}`;
   } else {
     $("dPhotoWrap")?.classList.add("hidden");
     $("dPhoto")?.removeAttribute("src");
@@ -391,7 +393,7 @@ function exportReports() {
 function ensureReportMap() {
   if (STATE.reportMap) return;
   const el = $("map");
-  if (!el) return;
+  if (!el || !window.L) return;
 
   STATE.reportMap = L.map("map");
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(STATE.reportMap);
@@ -416,7 +418,7 @@ let PICK_MODE = false;
 function ensureEditorMap() {
   if (STATE.editorMap) return;
   const el = $("mapEd");
-  if (!el) return;
+  if (!el || !window.L) return;
 
   STATE.editorMap = L.map("mapEd");
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(STATE.editorMap);
@@ -638,7 +640,9 @@ async function loadContentFromGithub() {
     STATE.reviewsSha = reviewsFile.sha;
     STATE.reviews = JSON.parse(decodeURIComponent(escape(atob(reviewsFile.content))));
 
-    if ($("ghStatus")) $("ghStatus").textContent = `OK ✅ Posti: ${STATE.places.length} • Recensioni: ${STATE.reviews.length}`;
+    if ($("ghStatus")) $("ghStatus").textContent =
+      `OK ✅ Posti: ${STATE.places.length} • Recensioni: ${STATE.reviews.length}`;
+
     renderPlacesAdmin();
     renderReviewsAdmin();
     showManager("places");
@@ -712,7 +716,6 @@ async function publishToGithub() {
     return;
   }
 
-  // se non ho sha, ricarico prima
   if (!STATE.placesSha || !STATE.reviewsSha) {
     if ($("ghStatus")) $("ghStatus").textContent = "Prima fai: Carica Posti/Recensioni.";
     return;
