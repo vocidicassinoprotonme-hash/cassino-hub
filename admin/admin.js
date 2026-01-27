@@ -1,523 +1,412 @@
-/* Admin • Cassino Hub (admin.js) — FIX tabs + maps + auto render */
-
-const $ = (id) => document.getElementById(id);
-
-const LS = {
-  ADMIN_KEY: "ch_adminKey",
-  API_BASE: "ch_apiBase",
-  GH_TOKEN: "ch_ghToken",
-  GH_REPO: "ch_ghRepo"
-};
+/* Cassino Hub Admin (D1-first)
+   - Reports: legge /list e aggiorna /admin/update (con admin key)
+   - Places/Reviews: legge da /admin/places /admin/reviews (con admin key) oppure fallback /public/*
+   - In questa versione "Pubblica su GitHub" è disattivato (fonte dati = D1 via Worker)
+*/
 
 const STATE = {
   apiBase: "",
   adminKey: "",
   ghToken: "",
   ghRepo: "",
-
   reports: [],
-  selected: null,
-
   places: [],
   reviews: [],
-  placesSha: null,
-  reviewsSha: null,
-
   reportMap: null,
-  reportPin: null,
-
   editorMap: null,
-  editorPin: null,
-
-  contentLoadedOnce: false
+  contentLoadedOnce: false,
 };
 
-// ================= UTIL =================
-function load(key, fallback = "") {
-  try { return localStorage.getItem(key) ?? fallback; } catch { return fallback; }
+const $ = (id) => document.getElementById(id);
+
+// =======================
+// UI helpers
+// =======================
+function setStatus(id, msg) {
+  const el = $(id);
+  if (el) el.textContent = msg || "";
 }
-function save(key, val) {
-  try { localStorage.setItem(key, val); } catch {}
-}
-function del(key) {
-  try { localStorage.removeItem(key); } catch {}
-}
-function escapeHTML(s) {
-  return (s || "").toString().replace(/[&<>"']/g, m => ({
+
+function escapeHTML(str) {
+  return String(str ?? "").replace(/[&<>"']/g, (m) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;"
   }[m]));
 }
-function isNum(n) { return typeof n === "number" && Number.isFinite(n); }
+
 function oneLine(s, max = 120) {
-  const t = (s || "").toString().replace(/\s+/g, " ").trim();
+  const t = String(s ?? "").replace(/\s+/g, " ").trim();
   return t.length > max ? t.slice(0, max - 1) + "…" : t;
 }
-function nowISO() { return new Date().toISOString(); }
-function uid() { return crypto.randomUUID(); }
 
-function headersAdmin() {
-  return { "X-Admin-Key": STATE.adminKey };
+function isNum(x) {
+  return typeof x === "number" && Number.isFinite(x);
 }
 
-async function apiFetch(path, opts = {}) {
-  if (!STATE.apiBase) throw new Error("API Base mancante");
-  const base = STATE.apiBase.replace(/\/$/, "");
-  const url = new URL(base + path, window.location.href);
-
-  // Compatibilità: molti endpoint admin accettano anche ?ak=...
-  const needsAk = path.startsWith("/admin") || path.startsWith("/list") || path.startsWith("/photo");
-  if (STATE.adminKey && needsAk && !url.searchParams.get("ak")) {
-    url.searchParams.set("ak", STATE.adminKey);
-  }
-
-  const headers = { ...(opts.headers || {}), ...headersAdmin() };
-  const hasBody = opts.body !== undefined && opts.body !== null;
-  if (hasBody && !(opts.body instanceof FormData)) {
-    headers["Content-Type"] = "application/json";
-  }
-
-  const res = await fetch(url.toString(), {
-    method: opts.method || "GET",
-    headers,
-    body: hasBody ? (opts.body instanceof FormData ? opts.body : JSON.stringify(opts.body)) : undefined
-  });
-
-  // Prova a leggere JSON sempre
-  const text = await res.text();
-  let data;
-  try { data = text ? JSON.parse(text) : {}; } catch { data = { ok: false, error: "Risposta non JSON", raw: text }; }
-  if (!res.ok && data && typeof data === "object" && data.ok !== true) {
-    data.ok = false;
-    data.error = data.error || `HTTP ${res.status}`;
-  }
-  return data;
+function uid() {
+  return "id-" + Math.random().toString(16).slice(2) + "-" + Date.now().toString(16);
 }
 
-function normBase(u) {
-  return (u || "").trim().replace(/\/$/, "");
-}
-
-function setConnStatus(msg) {
-  if ($("connStatus")) $("connStatus").textContent = msg || "";
-}
-function setGhStatus(msg) {
-  if ($("ghStatus")) $("ghStatus").textContent = msg || "";
+function parseMaybeNumber(v) {
+  if (v === null || v === undefined) return null;
+  const n = Number(String(v).trim());
+  return Number.isFinite(n) ? n : null;
 }
 
 function invalidateMap(map) {
   if (!map) return;
-  // Leaflet: serve dopo che il contenitore è visibile
-  setTimeout(() => {
-    try { map.invalidateSize(); } catch {}
-  }, 50);
+  setTimeout(() => map.invalidateSize(true), 50);
 }
 
 // =======================
-// TOP TABS
-// =======================
-function setupTopTabs() {
-  document.querySelectorAll(".tab").forEach(btn => {
-    btn.addEventListener("click", async () => {
-      document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
-      btn.classList.add("active");
-      const view = btn.dataset.view;
-
-      // hide all views
-      $("view-reports")?.classList.add("hidden");
-      $("view-content")?.classList.add("hidden");
-
-      if (view === "reports") {
-        $("view-reports")?.classList.remove("hidden");
-        // la mappa report può essere dentro un pannello che prima era hidden
-        invalidateMap(STATE.reportMap);
-        return;
-      }
-
-      // content views (places/reviews)
-      $("view-content")?.classList.remove("hidden");
-
-      // Se ho già token/repo salvati e non ho mai caricato, provo una volta
-      await ensureContentLoaded();
-
-      if (view === "places") {
-        if ($("contentTitle")) $("contentTitle").textContent = "Posti";
-        $("placesList")?.classList.remove("hidden");
-        $("reviewsList")?.classList.add("hidden");
-        $("btnAddPlace")?.classList.remove("hidden");
-        $("btnAddReview")?.classList.add("hidden");
-        $("editor")?.classList.add("hidden");
-
-        // ✅ FIX: render sempre quando apro il TAB
-        renderPlacesAdmin();
-        return;
-      }
-
-      if (view === "reviews") {
-        if ($("contentTitle")) $("contentTitle").textContent = "Recensioni";
-        $("reviewsList")?.classList.remove("hidden");
-        $("placesList")?.classList.add("hidden");
-        $("btnAddReview")?.classList.remove("hidden");
-        $("btnAddPlace")?.classList.add("hidden");
-        $("editor")?.classList.add("hidden");
-
-        // ✅ FIX: render sempre quando apro il TAB
-        renderReviewsAdmin();
-        return;
-      }
-    });
-  });
-}
-
-// =======================
-// CONNECTION / BUTTONS
+// Config (localStorage)
 // =======================
 function bootSettings() {
-  STATE.apiBase  = normBase(load(LS.API_BASE, ""));
-  STATE.adminKey = load(LS.ADMIN_KEY, "");
-  STATE.ghToken  = load(LS.GH_TOKEN, "");
-  STATE.ghRepo   = load(LS.GH_REPO, "");
+  const saved = JSON.parse(localStorage.getItem("cassinoAdminCfg") || "{}");
+  STATE.apiBase = saved.apiBase || "";
+  STATE.adminKey = saved.adminKey || "";
 
-  if ($("apiBase")) $("apiBase").value = STATE.apiBase;
-  if ($("adminKey")) $("adminKey").value = STATE.adminKey;
+  $("apiBase").value = STATE.apiBase;
+  $("adminKey").value = STATE.adminKey;
 
-  if ($("ghToken")) $("ghToken").value = STATE.ghToken;
-  if ($("ghRepo")) $("ghRepo").value = STATE.ghRepo;
+  setStatus("cfgStatus", "Config caricata.");
 }
 
-function wireCoreButtons() {
-  $("btnSaveKey")?.addEventListener("click", () => {
-    STATE.apiBase  = normBase($("apiBase")?.value || "");
-    STATE.adminKey = ($("adminKey")?.value || "").trim();
-    save(LS.API_BASE, STATE.apiBase);
-    save(LS.ADMIN_KEY, STATE.adminKey);
-    setConnStatus("Salvato ✅");
-  });
+function saveSettings() {
+  STATE.apiBase = ($("apiBase").value || "").trim().replace(/\/+$/, "");
+  STATE.adminKey = ($("adminKey").value || "").trim();
 
-  $("btnTest")?.addEventListener("click", async () => {
-    STATE.apiBase  = normBase($("apiBase")?.value || "");
-    STATE.adminKey = ($("adminKey")?.value || "").trim();
+  localStorage.setItem("cassinoAdminCfg", JSON.stringify({
+    apiBase: STATE.apiBase,
+    adminKey: STATE.adminKey
+  }));
 
-    if (!STATE.apiBase || !STATE.adminKey) {
-      setConnStatus("Inserisci Worker base URL e Admin Key.");
-      return;
-    }
+  setStatus("cfgStatus", "Salvato ✅");
+}
 
-    setConnStatus("Test in corso...");
-    try {
-      const res = await fetch(`${STATE.apiBase}/list`, { headers: headersAdmin() });
-      if (!res.ok) {
-        setConnStatus(`Test FALLITO: /list ${res.status}`);
-        return;
-      }
-      const data = await res.json().catch(() => null);
-      setConnStatus(`Test OK ✅ (${(data?.rows || []).length} righe)`);
-    } catch (e) {
-      console.warn(e);
-      setConnStatus("Test FALLITO: errore rete.");
-    }
-  });
+// =======================
+// Tabs
+// =======================
+function setupTopTabs() {
+  const tabs = Array.from(document.querySelectorAll(".tab"));
+  const views = {
+    reports: $("viewReports"),
+    places: $("viewPlaces"),
+    reviews: $("viewReviews"),
+  };
 
-  $("btnRefresh")?.addEventListener("click", loadReports);
-  $("btnExport")?.addEventListener("click", exportReports);
-  $("q")?.addEventListener("input", renderReportList);
+  function activate(view) {
+    tabs.forEach(t => t.classList.toggle("active", t.dataset.view === view));
+    Object.entries(views).forEach(([k, el]) => el.classList.toggle("hidden", k !== view));
+    $("detailEmpty").classList.remove("hidden");
+    $("detailReport").classList.add("hidden");
+    $("detailEditor").classList.add("hidden");
 
-  $("btnSaveReport")?.addEventListener("click", saveSelectedReport);
+    if (view === "places") renderPlacesAdmin();
+    if (view === "reviews") renderReviewsAdmin();
+  }
 
-  $("btnAddPlace")?.addEventListener("click", () => openEditor("places", null));
-  $("btnAddReview")?.addEventListener("click", () => openEditor("reviews", null));
+  tabs.forEach(t => t.addEventListener("click", () => activate(t.dataset.view)));
+}
 
-  $("btnCloseEditor")?.addEventListener("click", closeEditor);
-  $("btnPickOnMap")?.addEventListener("click", togglePickOnMap);
-  $("btnSaveItem")?.addEventListener("click", saveEditorItem);
-  $("btnDeleteItem")?.addEventListener("click", deleteEditorItem);
+// =======================
+// API fetch wrapper
+// =======================
+async function apiFetch(path, opts = {}) {
+  const base = ($("apiBase")?.value || STATE.apiBase || "").trim().replace(/\/+$/, "");
+  if (!base) return { ok: false, error: "API Base mancante" };
 
-  $("btnLoadContent")?.addEventListener("click", async () => {
-    await loadContentFromGithub();
-    // se stai guardando un tab content, aggiorna subito la vista
-    const active = document.querySelector(".tab.active")?.dataset?.view;
-    if (active === "places") renderPlacesAdmin();
-    if (active === "reviews") renderReviewsAdmin();
-  });
+  const url = base + path;
 
-  $("btnPublish")?.addEventListener("click", publishToGithub);
+  const headers = new Headers(opts.headers || {});
+  // Se non specificato, invio admin key come header (meglio che metterla in URL).
+  if (!headers.has("X-Admin-Key") && STATE.adminKey) headers.set("X-Admin-Key", STATE.adminKey);
+
+  const res = await fetch(url, { ...opts, headers });
+  const data = await res.json().catch(() => null);
+
+  if (!res.ok) {
+    return { ok: false, error: data?.error || data || `${res.status} ${res.statusText}` };
+  }
+  return data;
 }
 
 // =======================
 // REPORTS
 // =======================
 async function loadReports() {
-  setStatus("reportsStatus", "Carico segnalazioni…");
-  try {
-    const limit = 500;
-    const res = await apiFetch(`/list?limit=${limit}`);
-    if (!res.ok) throw new Error(res.error || "Errore nel caricamento segnalazioni");
-    // Il backend può rispondere con {rows:[...]} o direttamente con un array
-    const rows = Array.isArray(res) ? res : (res.rows || []);
-    STATE.reports = rows;
-    renderReports();
-    setStatus("reportsStatus", `OK • ${rows.length} segnalazioni (max ${limit}).`);
-  } catch (e) {
-    console.error(e);
-    setStatus("reportsStatus", "Errore: " + (e?.message || e));
+  setStatus("repStatusText", "Carico segnalazioni…");
+
+  // qui serve admin key (header)
+  const data = await apiFetch(`/list`);
+  if (!data.ok) {
+    setStatus("repStatusText", "Errore: " + data.error);
+    return;
   }
+
+  STATE.reports = data.rows || [];
+  setStatus("repStatusText", `OK • ${STATE.reports.length} segnalazioni`);
+  updateKpi();
+  renderReportsList();
 }
 
-function renderReportList() {
-  const root = $("list");
+function renderReportsList() {
+  const root = $("reportsList");
   if (!root) return;
   root.innerHTML = "";
 
-  const q = ($("q")?.value || "").toLowerCase().trim();
-  const items = STATE.reports.filter(r => {
-    const t = `${r.title || ""} ${r.description || ""}`.toLowerCase();
-    return !q || t.includes(q);
-  });
+  const wantStatus = $("repStatus")?.value || "all";
+  const rows = (STATE.reports || []).filter(r => wantStatus === "all" ? true : (r.status === wantStatus));
 
-  if (!items.length) {
-    root.innerHTML = `<p class="muted">Nessuna segnalazione.</p>`;
+  if (!rows.length) {
+    root.innerHTML = `<p class="muted">Nessuna segnalazione per questo filtro.</p>`;
     return;
   }
 
-  for (const r of items) {
+  rows.forEach(r => {
     const el = document.createElement("div");
     el.className = "item";
+    const badge = r.status === "new" ? "warn" : (r.status === "open" ? "ok" : "danger");
     el.innerHTML = `
       <div class="badges">
-        <span class="badge">${new Date(r.createdAt).toLocaleString("it-IT")}</span>
-        <span class="badge">${escapeHTML(r.status || "new")}</span>
+        <span class="badge ${badge}">${escapeHTML(r.status || "")}</span>
         ${r.photoKey ? `<span class="badge">📷</span>` : ``}
-        ${isNum(r.lat) && isNum(r.lng) ? `<span class="badge">📍</span>` : ``}
       </div>
-      <h4>${escapeHTML(oneLine(r.title, 60))}</h4>
-      <p class="muted">${escapeHTML(oneLine(r.description, 90))}</p>
+      <h4>${escapeHTML(oneLine(r.title, 70))}</h4>
+      <p class="muted">${escapeHTML(oneLine(r.description, 120))}</p>
     `;
-    el.addEventListener("click", () => selectReport(r.id));
+    el.addEventListener("click", () => openReport(r.id));
     root.appendChild(el);
-  }
+  });
 }
 
-function selectReport(id) {
+function openReport(id) {
   const r = STATE.reports.find(x => x.id === id);
   if (!r) return;
-  STATE.selected = r;
 
-  $("detailEmpty")?.classList.add("hidden");
-  $("detail")?.classList.remove("hidden");
+  $("detailEmpty").classList.add("hidden");
+  $("detailEditor").classList.add("hidden");
+  $("detailReport").classList.remove("hidden");
 
-  if ($("selMeta")) $("selMeta").textContent = `${new Date(r.createdAt).toLocaleString("it-IT")} • ${r.id}`;
-  if ($("dTitle")) $("dTitle").textContent = r.title || "";
-  if ($("dDesc")) $("dDesc").textContent = r.description || "";
+  // badges
+  const badge = r.status === "new" ? "warn" : (r.status === "open" ? "ok" : "danger");
+  $("repBadges").innerHTML = `
+    <span class="badge ${badge}">${escapeHTML(r.status || "")}</span>
+    ${r.photoKey ? `<span class="badge">📷</span>` : ``}
+    ${isNum(r.lat) && isNum(r.lng) ? `<span class="badge">📍</span>` : ``}
+  `;
 
-  if (r.photoKey) {
-    $("dPhotoWrap")?.classList.remove("hidden");
-    $("dPhoto").src = `${STATE.apiBase}/photo?key=${encodeURIComponent(r.photoKey)}&ak=${encodeURIComponent(STATE.adminKey)}`;
-  } else {
-    $("dPhotoWrap")?.classList.add("hidden");
-    $("dPhoto")?.removeAttribute("src");
+  $("repTitle").textContent = r.title || "";
+  $("repMeta").textContent = `ID: ${r.id} • ${r.createdAt || ""}`;
+  $("repDesc").textContent = r.description || "";
+
+  $("repEditStatus").value = r.status || "new";
+  $("repTags").value = r.tags || "";
+  $("repNote").value = r.adminNote || "";
+  $("repReply").value = r.adminReply || "";
+
+  // map
+  if (!STATE.reportMap) {
+    STATE.reportMap = L.map("mapReport", { zoomControl: true }).setView([41.49, 13.83], 12);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: "&copy; OpenStreetMap"
+    }).addTo(STATE.reportMap);
   }
+
+  // reset layers
+  STATE.reportMap.eachLayer(layer => {
+    if (layer instanceof L.Marker) STATE.reportMap.removeLayer(layer);
+  });
 
   if (isNum(r.lat) && isNum(r.lng)) {
-    if ($("dCoords")) $("dCoords").textContent = `Lat ${r.lat.toFixed(6)} • Lng ${r.lng.toFixed(6)}`;
+    const m = L.marker([r.lat, r.lng]).addTo(STATE.reportMap);
+    m.bindPopup(escapeHTML(r.title || "Segnalazione"));
+    STATE.reportMap.setView([r.lat, r.lng], 16);
   } else {
-    if ($("dCoords")) $("dCoords").textContent = "Nessuna coordinata.";
+    STATE.reportMap.setView([41.49, 13.83], 12);
+  }
+  invalidateMap(STATE.reportMap);
+
+  // photo
+  const box = $("repPhotoBox");
+  if (r.photoUrl) {
+    box.innerHTML = `<a class="btn small acc" target="_blank" href="${escapeHTML(r.photoUrl)}">Apri foto</a>`;
+  } else {
+    box.textContent = "Nessuna foto";
   }
 
-  if ($("dStatus")) $("dStatus").value = r.status || "new";
-  if ($("dTags")) $("dTags").value = r.tags || "";
-  if ($("dNote")) $("dNote").value = r.adminNote || "";
-  if ($("dReply")) $("dReply").value = r.adminReply || "";
-  if ($("saveStatus")) $("saveStatus").textContent = "";
-
-  ensureReportMap();
-  renderReportPin(r.lat, r.lng);
-  invalidateMap(STATE.reportMap);
+  setStatus("repSaveStatus", "");
+  $("btnSaveReport").onclick = () => saveReportEdits(r.id);
 }
 
-async function saveSelectedReport() {
-  if (!STATE.selected) return;
+async function saveReportEdits(id) {
+  setStatus("repSaveStatus", "Salvo…");
 
   const payload = {
-    id: STATE.selected.id,
-    status: $("dStatus")?.value,
-    tags: $("dTags")?.value,
-    adminNote: $("dNote")?.value,
-    adminReply: $("dReply")?.value
+    id,
+    status: $("repEditStatus").value,
+    tags: $("repTags").value,
+    adminNote: $("repNote").value,
+    adminReply: $("repReply").value,
   };
 
-  if ($("saveStatus")) $("saveStatus").textContent = "Salvo...";
-  try {
-    const res = await fetch(`${STATE.apiBase}/admin/update`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...headersAdmin() },
-      body: JSON.stringify(payload)
-    });
-    const data = await res.json().catch(() => null);
+  const res = await apiFetch(`/admin/update`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
 
-    if (!res.ok || !data?.ok) {
-      if ($("saveStatus")) $("saveStatus").textContent = `Errore: ${res.status}`;
-      console.log("update error", data);
-      return;
-    }
-
-    if ($("saveStatus")) $("saveStatus").textContent = "Salvato ✅";
-    Object.assign(STATE.selected, data);
-
-    const idx = STATE.reports.findIndex(x => x.id === STATE.selected.id);
-    if (idx >= 0) STATE.reports[idx] = { ...STATE.reports[idx], ...data };
-
-    renderReportList();
-  } catch (e) {
-    console.warn(e);
-    if ($("saveStatus")) $("saveStatus").textContent = "Errore rete.";
-  }
-}
-
-function exportReports() {
-  const blob = new Blob([JSON.stringify(STATE.reports, null, 2)], { type: "application/json" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = "reports-export.json";
-  a.click();
-  URL.revokeObjectURL(a.href);
-}
-
-// =======================
-// MAP REPORT
-// =======================
-function ensureReportMap() {
-  if (STATE.reportMap) return;
-  if (!window.L) {
-    alert("Leaflet non caricato. Controlla internet o i link Leaflet in admin.html");
+  if (!res.ok) {
+    setStatus("repSaveStatus", "Errore: " + res.error);
     return;
   }
-  const el = $("mapReport");
-  if (!el) return;
 
-  STATE.reportMap = L.map("mapReport");
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(STATE.reportMap);
-  STATE.reportMap.setView([41.492, 13.832], 13);
-}
-
-function renderReportPin(lat, lng) {
-  if (!STATE.reportMap) return;
-  if (STATE.reportPin) { STATE.reportPin.remove(); STATE.reportPin = null; }
-  if (isNum(lat) && isNum(lng)) {
-    STATE.reportPin = L.marker([lat, lng]).addTo(STATE.reportMap);
-    STATE.reportMap.setView([lat, lng], 15);
-  } else {
-    STATE.reportMap.setView([41.492, 13.832], 13);
+  // aggiorna in memoria
+  const idx = STATE.reports.findIndex(x => x.id === id);
+  if (idx >= 0) {
+    STATE.reports[idx] = { ...STATE.reports[idx], ...res };
   }
+
+  setStatus("repSaveStatus", "Salvato ✅");
+  renderReportsList();
 }
 
 // =======================
-// CONTENT EDITOR + MAP PICK
+// PLACES / REVIEWS EDITOR
 // =======================
-let PICK_MODE = false;
 let EDIT_MODE = null; // "places" | "reviews"
 let EDIT_ID = null;
 
-function ensureEditorMap() {
-  if (STATE.editorMap) return;
-  if (!window.L) {
-    alert("Leaflet non caricato. Controlla i link Leaflet in admin.html");
-    return;
-  }
-  const el = $("mapEd");
-  if (!el) return;
-
-  STATE.editorMap = L.map("mapEd");
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(STATE.editorMap);
-  STATE.editorMap.setView([41.492, 13.832], 13);
-
-  STATE.editorMap.on("click", (e) => {
-    if (!PICK_MODE) return;
-    const { lat, lng } = e.latlng;
-    if ($("edLat")) $("edLat").value = lat.toFixed(6);
-    if ($("edLng")) $("edLng").value = lng.toFixed(6);
-    renderEditorPin(lat, lng);
-    if ($("edStatus")) $("edStatus").textContent = "Coordinate impostate dalla mappa ✅";
+function wireCoreButtons() {
+  $("btnSaveCfg").addEventListener("click", () => {
+    saveSettings();
+    updateKpi();
   });
+
+  $("btnLoadReports").addEventListener("click", loadReports);
+  $("repStatus").addEventListener("change", renderReportsList);
+
+  $("btnLoadContent").addEventListener("click", async () => {
+    await loadContentFromApi();
+  });
+  $("btnLoadContent2").addEventListener("click", async () => {
+    await loadContentFromApi();
+  });
+
+  $("btnNewPlace").addEventListener("click", () => openEditor("places"));
+  $("btnNewReview").addEventListener("click", () => openEditor("reviews"));
+
+  $("btnCloseEditor").addEventListener("click", closeEditor);
+  $("btnSaveItem").addEventListener("click", saveEditorItem);
+  $("btnDeleteItem").addEventListener("click", deleteEditorItem);
+
+  $("btnPublish").addEventListener("click", publishToGithub);
 }
 
-function renderEditorPin(lat, lng) {
-  if (!STATE.editorMap) return;
-  if (STATE.editorPin) { STATE.editorPin.remove(); STATE.editorPin = null; }
-  if (isNum(lat) && isNum(lng)) {
-    STATE.editorPin = L.marker([lat, lng]).addTo(STATE.editorMap);
-    STATE.editorMap.setView([lat, lng], 15);
-  } else {
-    STATE.editorMap.setView([41.492, 13.832], 13);
-  }
+// =======================
+// KPIs
+// =======================
+function updateKpi() {
+  $("kpiReports").textContent = `Reports: ${STATE.reports.length || 0}`;
+  $("kpiPlaces").textContent = `Places: ${STATE.places.length || 0}`;
+  $("kpiReviews").textContent = `Reviews: ${STATE.reviews.length || 0}`;
 }
 
-function togglePickOnMap() {
-  PICK_MODE = !PICK_MODE;
-  if ($("btnPickOnMap")) $("btnPickOnMap").textContent = PICK_MODE ? "✅ Click sulla mappa..." : "📍 Seleziona su mappa";
-  if ($("edStatus")) $("edStatus").textContent = PICK_MODE ? "Modalità selezione: clicca un punto sulla mappa." : "";
-}
-
-function openEditor(mode, id) {
+// =======================
+// Editor open/close
+// =======================
+function openEditor(mode, id = null) {
   EDIT_MODE = mode;
   EDIT_ID = id;
 
-  $("editor")?.classList.remove("hidden");
+  $("detailEmpty").classList.add("hidden");
+  $("detailReport").classList.add("hidden");
+  $("detailEditor").classList.remove("hidden");
 
-  ensureEditorMap();
-  invalidateMap(STATE.editorMap);
+  $("editorPlace").classList.toggle("hidden", mode !== "places");
+  $("editorReview").classList.toggle("hidden", mode !== "reviews");
 
-  const isReview = mode === "reviews";
-  $("edRatingWrap")?.classList.toggle("hidden", !isReview);
-  if ($("edTitle")) $("edTitle").textContent = isReview ? "Editor • Recensione" : "Editor • Posto";
+  $("edMode").textContent = mode === "places" ? "PLACE" : "REVIEW";
+  $("edId").textContent = id ? `ID: ${id}` : "Nuovo elemento";
+  setStatus("edStatus", "");
 
-  const item = id
-    ? (isReview ? STATE.reviews.find(x => x.id === id) : STATE.places.find(x => x.id === id))
-    : null;
-
-  if (isReview) {
-    $("edName").value = item?.title || "";
-    $("edCat").value  = item?.place || "";
-    $("edDesc").value = item?.text || "";
-    $("edLat").value  = isNum(item?.lat) ? item.lat : "";
-    $("edLng").value  = isNum(item?.lng) ? item.lng : "";
-    $("edRating").value = item?.rating ?? 5;
-  } else {
-    $("edName").value = item?.name || "";
-    $("edCat").value  = item?.category || "";
-    $("edDesc").value = item?.description || "";
-    $("edLat").value  = isNum(item?.lat) ? item.lat : "";
-    $("edLng").value  = isNum(item?.lng) ? item.lng : "";
+  // init map
+  if (!STATE.editorMap) {
+    STATE.editorMap = L.map("mapEditor", { zoomControl: true }).setView([41.49, 13.83], 12);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: "&copy; OpenStreetMap"
+    }).addTo(STATE.editorMap);
   }
 
-  const lat = Number($("edLat").value);
-  const lng = Number($("edLng").value);
-  renderEditorPin(Number.isFinite(lat) ? lat : null, Number.isFinite(lng) ? lng : null);
+  // clear marker layers
+  STATE.editorMap.eachLayer(layer => {
+    if (layer instanceof L.Marker) STATE.editorMap.removeLayer(layer);
+  });
 
-  if ($("edStatus")) $("edStatus").textContent = id ? "Modifica elemento esistente." : "Nuovo elemento.";
+  if (mode === "places") {
+    const p = id ? STATE.places.find(x => x.id === id) : null;
+    $("edName").value = p?.name || "";
+    $("edCat").value = p?.category || "posto";
+    $("edDesc").value = p?.description || "";
+    $("edLat").value = isNum(p?.lat) ? String(p.lat) : "";
+    $("edLng").value = isNum(p?.lng) ? String(p.lng) : "";
+
+    if (isNum(p?.lat) && isNum(p?.lng)) {
+      L.marker([p.lat, p.lng]).addTo(STATE.editorMap);
+      STATE.editorMap.setView([p.lat, p.lng], 16);
+    } else {
+      STATE.editorMap.setView([41.49, 13.83], 12);
+    }
+  } else {
+    const r = id ? STATE.reviews.find(x => x.id === id) : null;
+    $("edTitle").value = r?.title || "";
+    $("edPlace").value = r?.place || "";
+    $("edRating").value = r?.rating ? String(r.rating) : "5";
+    $("edText").value = r?.text || "";
+    $("edLat2").value = isNum(r?.lat) ? String(r.lat) : "";
+    $("edLng2").value = isNum(r?.lng) ? String(r.lng) : "";
+
+    if (isNum(r?.lat) && isNum(r?.lng)) {
+      L.marker([r.lat, r.lng]).addTo(STATE.editorMap);
+      STATE.editorMap.setView([r.lat, r.lng], 16);
+    } else {
+      STATE.editorMap.setView([41.49, 13.83], 12);
+    }
+  }
+
+  invalidateMap(STATE.editorMap);
 }
 
 function closeEditor() {
-  $("editor")?.classList.add("hidden");
-  PICK_MODE = false;
-  if ($("btnPickOnMap")) $("btnPickOnMap").textContent = "📍 Seleziona su mappa";
-  if ($("edStatus")) $("edStatus").textContent = "";
   EDIT_MODE = null;
   EDIT_ID = null;
+
+  $("detailEditor").classList.add("hidden");
+  $("detailReport").classList.add("hidden");
+  $("detailEmpty").classList.remove("hidden");
 }
 
+// =======================
+// Save/Delete in memory
+// =======================
 function saveEditorItem() {
   if (!EDIT_MODE) return;
 
-  const isReview = EDIT_MODE === "reviews";
-  const lat = ($("edLat").value) ? Number($("edLat").value) : null;
-  const lng = ($("edLng").value) ? Number($("edLng").value) : null;
+  if (EDIT_MODE === "reviews") {
+    const rating = parseMaybeNumber($("edRating").value) ?? 5;
+    const lat = parseMaybeNumber($("edLat2").value);
+    const lng = parseMaybeNumber($("edLng2").value);
 
-  if (isReview) {
     const obj = {
       id: EDIT_ID || uid(),
-      title: ($("edName").value || "").trim(),
-      place: ($("edCat").value || "").trim(),
-      rating: Math.max(1, Math.min(5, Number(($("edRating").value || 5)))),
-      text: ($("edDesc").value || "").trim(),
+      placeId: "",
+      place: ($("edPlace").value || "").trim(),
+      rating: Math.max(1, Math.min(5, Math.trunc(rating))),
+      title: ($("edTitle").value || "").trim(),
+      text: ($("edText").value || "").trim(),
+      author: "Anonimo",
+      createdAt: new Date().toISOString(),
       lat: Number.isFinite(lat) ? lat : null,
       lng: Number.isFinite(lng) ? lng : null
     };
@@ -538,6 +427,9 @@ function saveEditorItem() {
     $("edStatus").textContent = "Salvato in memoria ✅ (ora Pubblica su GitHub)";
     renderReviewsAdmin();
   } else {
+    const lat = parseMaybeNumber($("edLat").value);
+    const lng = parseMaybeNumber($("edLng").value);
+
     const obj = {
       id: EDIT_ID || uid(),
       name: ($("edName").value || "").trim(),
@@ -623,25 +515,26 @@ async function ghPutFile(path, contentStr, sha, message) {
 }
 
 async function ensureContentLoaded() {
-  // Carica una volta sola se ho le credenziali salvate
+  // Carica una volta sola
   if (STATE.contentLoadedOnce) return;
-  const token = ($("ghToken")?.value || STATE.ghToken || "").trim();
-  const repo  = ($("ghRepo")?.value  || STATE.ghRepo  || "").trim();
-  if (!token || !repo) return;
 
-  // non bloccare se sono già presenti dati in memoria
+  const apiBase = ($("apiBase")?.value || STATE.apiBase || "").trim();
+  if (!apiBase) return; // senza base API non posso caricare
+
+  // Se ho già dati in memoria, considero "caricato"
   if (STATE.places.length || STATE.reviews.length) {
     STATE.contentLoadedOnce = true;
     return;
   }
 
-  await loadContentFromGithub();
+  await loadContentFromApi();
   STATE.contentLoadedOnce = true;
 }
 
-async function loadContentFromGithub() {
+async function loadContentFromApi() {
   // In questa versione l’admin non legge più da GitHub: legge direttamente dal Worker (D1).
   setStatus("ghStatus", "Carico contenuti da API…");
+  setStatus("ghStatus2", "Carico contenuti da API…");
   try {
     const limit = 500;
 
@@ -682,7 +575,9 @@ async function loadContentFromGithub() {
       title: r.title ?? "",
       text: r.text ?? r.body ?? "",
       author: r.author ?? "",
-      createdAt: r.createdAt ?? ""
+      createdAt: r.createdAt ?? "",
+      lat: r.lat ?? null,
+      lng: r.lng ?? null
     }));
 
     STATE.contentLoadedOnce = true;
@@ -690,9 +585,12 @@ async function loadContentFromGithub() {
     renderReviewsAdmin();
 
     setStatus("ghStatus", `OK • Places: ${STATE.places.length} • Reviews: ${STATE.reviews.length}`);
+    setStatus("ghStatus2", `OK • Places: ${STATE.places.length} • Reviews: ${STATE.reviews.length}`);
+    updateKpi();
   } catch (e) {
     console.error(e);
     setStatus("ghStatus", "Errore: " + (e?.message || e));
+    setStatus("ghStatus2", "Errore: " + (e?.message || e));
   }
 }
 
@@ -702,7 +600,7 @@ function renderPlacesAdmin() {
   root.innerHTML = "";
 
   if (!STATE.places.length) {
-    root.innerHTML = `<p class="muted">Nessun posto. (Premi “Carica da GitHub” oppure aggiungi e poi “Pubblica”)</p>`;
+    root.innerHTML = `<p class="muted">Nessun posto. (Premi “Carica da API”)</p>`;
     return;
   }
 
@@ -728,7 +626,7 @@ function renderReviewsAdmin() {
   root.innerHTML = "";
 
   if (!STATE.reviews.length) {
-    root.innerHTML = `<p class="muted">Nessuna recensione. (Premi “Carica da GitHub” oppure aggiungi e poi “Pubblica”)</p>`;
+    root.innerHTML = `<p class="muted">Nessuna recensione. (Premi “Carica da API”)</p>`;
     return;
   }
 
@@ -753,6 +651,7 @@ function renderReviewsAdmin() {
 async function publishToGithub() {
   // Pubblicazione su GitHub disattivata: ora la fonte dati è D1 (tramite Worker).
   setStatus("ghStatus", "Nota: la pubblicazione su GitHub è disattivata. I dati vengono letti/salvati in D1.");
+  setStatus("ghStatus2", "Nota: la pubblicazione su GitHub è disattivata. I dati vengono letti/salvati in D1.");
   alert("Pubblicazione su GitHub disattivata: questa admin legge i dati direttamente dal database (D1).");
 }
 
@@ -765,7 +664,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   wireCoreButtons();
   loadReports().catch(() => {});
 
-  // se esistono credenziali GitHub salvate, prova a caricare una volta
+  // se esistono credenziali salvate, prova a caricare una volta
   await ensureContentLoaded();
 
   // se tab attivo è places/reviews, render
