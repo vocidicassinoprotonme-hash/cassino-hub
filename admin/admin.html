@@ -3,274 +3,255 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Admin • Cassino Hub</title>
-
-  <!-- Leaflet -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-
+  <title>Cassino Hub • Admin</title>
   <style>
     :root{
-      --bg:#0b1220; --card:#0f1b2d; --card2:#10233a; --txt:#e8f0ff; --muted:#a9b6cf;
-      --btn:#1f6feb; --btn2:#20344f; --danger:#d64b4b; --border:#1b2e4a;
-      --radius:16px;
+      --bg:#0b1220; --card:#121b2e; --muted:#9fb0d0; --text:#eef4ff;
+      --acc:#5eead4; --acc2:#60a5fa; --danger:#fb7185; --warn:#fbbf24;
+      --ok:#34d399; --line:#23304f;
     }
-    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu; background:linear-gradient(180deg,#0b1220,#0a1628); color:var(--txt);}
-    .top{display:flex;gap:12px;align-items:center;padding:16px 18px;}
-    .logo{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;background:#0d2a4a;border:1px solid var(--border); font-weight:700;}
-    .title h1{margin:0;font-size:18px;}
-    .title p{margin:2px 0 0;color:var(--muted);font-size:12px;}
-
-    .tabs{display:flex;gap:10px;padding:0 18px 12px;}
-    .tab{border:1px solid var(--border);background:transparent;color:var(--txt);padding:8px 12px;border-radius:999px;cursor:pointer}
-    .tab.active{background:var(--btn2);border-color:#2b4d7a}
-
-    .wrap{padding:0 18px 22px; max-width:1200px; margin:0 auto;}
-    .card{background:rgba(15,27,45,.82); border:1px solid var(--border); border-radius:var(--radius); padding:14px; box-shadow:0 10px 26px rgba(0,0,0,.25); }
-    .row{display:flex; gap:12px; flex-wrap:wrap; align-items:center;}
-    .space{justify-content:space-between}
-    .grid2{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
-    @media(max-width:900px){.grid2{grid-template-columns:1fr}}
-    .field{display:flex;flex-direction:column; gap:6px; flex:1}
-    .field span{color:var(--muted);font-size:12px}
-    input,textarea,select{
-      background:rgba(10,18,32,.7); color:var(--txt);
-      border:1px solid var(--border); border-radius:12px; padding:10px 12px; outline:none;
-    }
-    textarea{resize:vertical}
-    .btn{background:var(--btn); border:none; color:white; padding:10px 14px; border-radius:12px; cursor:pointer; font-weight:600}
-    .btn.secondary{background:var(--btn2); border:1px solid var(--border)}
-    .btn.danger{background:var(--danger)}
-    .muted{color:var(--muted)}
-    .mini{font-size:12px}
-    .hidden{display:none !important;}
-
-    .layout{display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top:12px;}
-    @media(max-width:1100px){.layout{grid-template-columns:1fr}}
-
-    .list{display:flex; flex-direction:column; gap:10px;}
-    .item{
-      background:rgba(16,35,58,.55);
-      border:1px solid var(--border);
-      border-radius:14px;
-      padding:12px;
-      cursor:pointer;
-    }
-    .item:hover{border-color:#2d5d97}
-    .badges{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px;}
-    .badge{
-      font-size:12px; color:var(--muted);
-      padding:4px 10px; border-radius:999px;
-      border:1px solid var(--border);
-      background:rgba(10,18,32,.55);
-    }
-    .map{height:320px; border-radius:14px; border:1px solid var(--border); overflow:hidden;}
-    img.photo{width:100%; max-height:320px; object-fit:cover; border-radius:14px; border:1px solid var(--border)}
+    *{box-sizing:border-box}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;background:linear-gradient(180deg,#070b15,#0b1220);color:var(--text)}
+    header{padding:16px 18px;border-bottom:1px solid var(--line);position:sticky;top:0;background:rgba(11,18,32,.92);backdrop-filter:blur(10px);z-index:5}
+    header h1{margin:0;font-size:16px;font-weight:700;letter-spacing:.3px}
+    header .sub{margin-top:4px;color:var(--muted);font-size:12px}
+    main{padding:18px;max-width:1200px;margin:0 auto}
+    .grid{display:grid;grid-template-columns:340px 1fr;gap:14px}
+    @media(max-width:980px){.grid{grid-template-columns:1fr}}
+    .card{background:rgba(18,27,46,.92);border:1px solid var(--line);border-radius:16px;padding:14px}
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    .row > *{flex:1}
+    .btn{border:1px solid var(--line);background:#0f172a;color:var(--text);padding:10px 12px;border-radius:12px;cursor:pointer;font-weight:650}
+    .btn:hover{border-color:#334166}
+    .btn.acc{background:linear-gradient(90deg,rgba(94,234,212,.2),rgba(96,165,250,.2));border-color:#2c3d63}
+    .btn.danger{background:rgba(251,113,133,.12);border-color:rgba(251,113,133,.3)}
+    .btn.ok{background:rgba(52,211,153,.12);border-color:rgba(52,211,153,.3)}
+    .btn.small{padding:8px 10px;font-size:12px;border-radius:10px}
+    input,select,textarea{width:100%;padding:10px 12px;border-radius:12px;border:1px solid #2b3a61;background:#0b1326;color:var(--text);outline:none}
+    textarea{min-height:86px;resize:vertical}
+    label{font-size:12px;color:var(--muted);display:block;margin:10px 0 6px}
+    .tabs{display:flex;gap:10px;margin-top:12px}
+    .tab{padding:10px 12px;border-radius:12px;border:1px solid var(--line);cursor:pointer;color:var(--muted)}
+    .tab.active{color:var(--text);background:rgba(96,165,250,.12);border-color:rgba(96,165,250,.35)}
+    .muted{color:var(--muted);font-size:12px}
+    .list{display:grid;gap:10px}
+    .item{padding:12px;border:1px solid var(--line);border-radius:14px;background:rgba(10,18,35,.7);cursor:pointer}
+    .item:hover{border-color:#3a4b75}
+    .item h4{margin:0 0 6px;font-size:14px}
+    .badges{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px}
+    .badge{font-size:11px;padding:3px 8px;border-radius:999px;border:1px solid #2b3a61;color:var(--muted)}
+    .badge.ok{border-color:rgba(52,211,153,.4);color:rgba(52,211,153,.95)}
+    .badge.warn{border-color:rgba(251,191,36,.4);color:rgba(251,191,36,.95)}
+    .badge.danger{border-color:rgba(251,113,133,.4);color:rgba(251,113,133,.95)}
+    .split{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    @media(max-width:980px){.split{grid-template-columns:1fr}}
+    .hr{height:1px;background:var(--line);margin:12px 0}
+    .status{font-size:12px;color:var(--muted);margin-top:8px}
+    .pill{font-size:12px;padding:4px 10px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+    .right{margin-left:auto}
+    .kpi{display:flex;gap:10px;flex-wrap:wrap}
+    .kpi .pill{background:rgba(96,165,250,.08)}
+    .map{height:280px;border-radius:16px;border:1px solid var(--line);overflow:hidden;background:#0b1326}
+    .hidden{display:none !important}
+    .twoCols{display:grid;grid-template-columns:1fr 360px;gap:14px}
+    @media(max-width:1120px){.twoCols{grid-template-columns:1fr}}
   </style>
-</head>
 
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
 <body>
-  <div class="top">
-    <div class="logo">CH</div>
-    <div class="title">
-      <h1>Admin • Cassino Hub</h1>
-      <p>Approva / Rifiuta • Segnalazioni • Recensioni • Posti</p>
+<header>
+  <h1>Cassino Hub • Admin</h1>
+  <div class="sub">Gestione segnalazioni + database (D1) per Places/Reviews</div>
+</header>
+
+<main>
+  <div class="card">
+    <div class="row">
+      <div style="flex:2">
+        <label>API Base (Worker)</label>
+        <input id="apiBase" placeholder="https://cassino-segnalazioni.vocidicassinoproton-me.workers.dev" />
+      </div>
+      <div style="flex:1">
+        <label>Admin Key (opzionale)</label>
+        <input id="adminKey" placeholder="ak=..." />
+      </div>
+      <div style="flex:0 0 auto;align-self:flex-end">
+        <button class="btn acc" id="btnSaveCfg">Salva</button>
+      </div>
+
+      <div class="right kpi" style="flex:0 0 auto;align-self:flex-end">
+        <span class="pill" id="kpiReports">Reports: -</span>
+        <span class="pill" id="kpiPlaces">Places: -</span>
+        <span class="pill" id="kpiReviews">Reviews: -</span>
+      </div>
     </div>
+    <div class="status" id="cfgStatus"></div>
   </div>
 
   <div class="tabs">
-    <button class="tab active" data-view="reports">Segnalazioni</button>
-    <button class="tab" data-view="reviews">Recensioni</button>
-    <button class="tab" data-view="places">Posti</button>
+    <div class="tab active" data-view="reports">Segnalazioni</div>
+    <div class="tab" data-view="places">Places</div>
+    <div class="tab" data-view="reviews">Reviews</div>
   </div>
 
-  <div class="wrap">
+  <div class="grid" style="margin-top:14px">
 
-    <!-- Connessione -->
+    <!-- LEFT: LIST -->
     <div class="card">
-      <h2 style="margin:0 0 10px">Connessione</h2>
-      <div class="grid2">
-        <label class="field">
-          <span>Worker base URL</span>
-          <input id="apiBase" type="text" placeholder="https://.....workers.dev" />
-        </label>
-        <label class="field">
-          <span>ADMIN KEY (X-Admin-Key)</span>
-          <input id="adminKey" type="password" placeholder="********" />
-        </label>
+      <div id="viewReports">
+        <div class="row">
+          <select id="repStatus">
+            <option value="all">Tutte</option>
+            <option value="new" selected>Nuove</option>
+            <option value="open">Aperte</option>
+            <option value="closed">Chiuse</option>
+          </select>
+          <button class="btn" id="btnLoadReports">Carica</button>
+        </div>
+        <div class="status" id="repStatusText"></div>
+        <div class="hr"></div>
+        <div class="list" id="reportsList"></div>
       </div>
 
-      <div class="row" style="margin-top:10px">
-        <button id="btnSaveKey" class="btn" type="button">Salva</button>
-        <button id="btnTest" class="btn secondary" type="button">Test</button>
-        <button id="btnRefresh" class="btn secondary" type="button">Carica segnalazioni</button>
-        <button id="btnExport" class="btn secondary" type="button">Esporta JSON</button>
-        <span id="connStatus" class="muted mini"></span>
+      <div id="viewPlaces" class="hidden">
+        <div class="row">
+          <button class="btn" id="btnLoadContent">Carica da API</button>
+          <button class="btn acc" id="btnNewPlace">+ Nuovo</button>
+        </div>
+        <div class="status" id="ghStatus"></div>
+        <div class="hr"></div>
+        <div class="list" id="placesList"></div>
+      </div>
+
+      <div id="viewReviews" class="hidden">
+        <div class="row">
+          <button class="btn" id="btnLoadContent2">Carica da API</button>
+          <button class="btn acc" id="btnNewReview">+ Nuovo</button>
+        </div>
+        <div class="status" id="ghStatus2"></div>
+        <div class="hr"></div>
+        <div class="list" id="reviewsList"></div>
       </div>
     </div>
 
-    <!-- VIEW: REPORTS -->
-    <div id="view-reports" class="card" style="margin-top:12px">
-      <div class="row space">
-        <h2 style="margin:0">Segnalazioni</h2>
-        <label class="field" style="max-width:420px">
-          <span>Cerca</span>
-          <input id="q" type="text" placeholder="cerca in titolo/descrizione..." />
-        </label>
-      </div>
+    <!-- RIGHT: DETAIL -->
+    <div class="card">
+      <div id="detailEmpty" class="muted">Seleziona un elemento dalla lista.</div>
 
-      <div class="layout">
-        <div>
-          <div id="list" class="list"></div>
-        </div>
+      <!-- REPORT DETAIL -->
+      <div id="detailReport" class="hidden">
+        <div class="twoCols">
+          <div>
+            <div class="badges" id="repBadges"></div>
+            <h3 id="repTitle" style="margin:6px 0 8px"></h3>
+            <div class="muted" id="repMeta"></div>
+            <div class="hr"></div>
+            <div id="repDesc" style="white-space:pre-wrap"></div>
+            <div class="hr"></div>
 
-        <div>
-          <div id="detailEmpty" class="muted">Seleziona una segnalazione a sinistra.</div>
+            <label>Stato</label>
+            <select id="repEditStatus">
+              <option value="new">new</option>
+              <option value="open">open</option>
+              <option value="closed">closed</option>
+            </select>
 
-          <div id="detail" class="hidden">
-            <div class="row space">
-              <div>
-                <div id="selMeta" class="muted mini"></div>
-                <h3 id="dTitle" style="margin:6px 0 6px"></h3>
-              </div>
-              <button id="btnSaveReport" class="btn" type="button">Salva in alto</button>
-            </div>
+            <label>Tag</label>
+            <input id="repTags" placeholder="es: sicurezza, buche, rifiuti" />
 
-            <p id="dDesc" class="muted" style="margin-top:6px"></p>
-            <div id="dCoords" class="muted mini" style="margin:6px 0 10px"></div>
+            <label>Nota admin</label>
+            <textarea id="repNote" placeholder="nota interna"></textarea>
 
-            <div id="dPhotoWrap" class="hidden" style="margin:10px 0">
-              <img id="dPhoto" class="photo" alt="foto segnalazione" />
-            </div>
-
-            <div class="grid2">
-              <label class="field">
-                <span>Status</span>
-                <select id="dStatus">
-                  <option value="new">new</option>
-                  <option value="open">open</option>
-                  <option value="working">working</option>
-                  <option value="done">done</option>
-                  <option value="rejected">rejected</option>
-                </select>
-              </label>
-              <label class="field">
-                <span>Tags</span>
-                <input id="dTags" type="text" placeholder="es. buche, luci, degrado..." />
-              </label>
-            </div>
-
-            <label class="field" style="margin-top:10px">
-              <span>Nota interna (admin)</span>
-              <textarea id="dNote" rows="3"></textarea>
-            </label>
-
-            <label class="field" style="margin-top:10px">
-              <span>Risposta (eventuale)</span>
-              <textarea id="dReply" rows="3"></textarea>
-            </label>
+            <label>Risposta admin</label>
+            <textarea id="repReply" placeholder="testo risposta"></textarea>
 
             <div class="row" style="margin-top:10px">
-              <span id="saveStatus" class="muted mini"></span>
+              <button class="btn ok" id="btnSaveReport">Salva</button>
+              <span class="status" id="repSaveStatus"></span>
             </div>
+          </div>
 
-            <hr style="border-color:var(--border); margin:14px 0;">
-            <h3 style="margin:0 0 10px">Mappa</h3>
-            <div id="mapReport" class="map"></div>
+          <div>
+            <div class="map" id="mapReport"></div>
+            <div class="hr"></div>
+            <div id="repPhotoBox" class="muted">Nessuna foto</div>
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- VIEW: CONTENT (REVIEWS + PLACES) -->
-    <div id="view-content" class="card hidden" style="margin-top:12px">
-      <div class="row space">
-        <h2 id="contentTitle" style="margin:0">Contenuti</h2>
+      <!-- PLACE/REVIEW EDITOR -->
+      <div id="detailEditor" class="hidden">
         <div class="row">
-          <button id="btnAddPlace" class="btn hidden" type="button">+ Aggiungi Posto</button>
-          <button id="btnAddReview" class="btn hidden" type="button">+ Aggiungi Recensione</button>
-        </div>
-      </div>
-
-      <div class="list" style="margin-top:12px">
-        <div id="placesList" class="list hidden"></div>
-        <div id="reviewsList" class="list hidden"></div>
-      </div>
-
-      <div id="editor" class="card hidden" style="margin-top:12px; background:rgba(16,35,58,.55)">
-        <div class="row space">
-          <h3 id="edTitle" style="margin:0">Editor</h3>
-          <button id="btnCloseEditor" class="btn danger" type="button">Chiudi</button>
+          <span class="badge" id="edMode">editor</span>
+          <span class="muted" id="edId"></span>
+          <div class="right"></div>
+          <button class="btn danger small" id="btnDeleteItem">Elimina</button>
+          <button class="btn small" id="btnCloseEditor">Chiudi</button>
         </div>
 
-        <div class="grid2" style="margin-top:10px">
-          <label class="field">
-            <span>Nome / Titolo</span>
-            <input id="edName" type="text" />
-          </label>
+        <div class="hr"></div>
 
-          <label class="field">
-            <span>Categoria / Luogo</span>
-            <input id="edCat" type="text" placeholder="es. cultura / ristorante" />
-          </label>
+        <div id="editorPlace" class="hidden">
+          <label>Nome</label>
+          <input id="edName" />
+          <label>Categoria</label>
+          <input id="edCat" placeholder="posto / ristorante / negozio ..." />
+          <label>Descrizione</label>
+          <textarea id="edDesc"></textarea>
+
+          <div class="split">
+            <div>
+              <label>Lat</label>
+              <input id="edLat" />
+            </div>
+            <div>
+              <label>Lng</label>
+              <input id="edLng" />
+            </div>
+          </div>
         </div>
 
-        <label class="field" style="margin-top:10px">
-          <span>Descrizione / Testo</span>
-          <textarea id="edDesc" rows="4"></textarea>
-        </label>
+        <div id="editorReview" class="hidden">
+          <label>Titolo</label>
+          <input id="edTitle" />
+          <label>Luogo (testo)</label>
+          <input id="edPlace" />
+          <label>Rating (1-5)</label>
+          <input id="edRating" type="number" min="1" max="5" />
+          <label>Testo</label>
+          <textarea id="edText"></textarea>
 
-        <div class="grid2" style="margin-top:10px">
-          <label class="field">
-            <span>Lat</span>
-            <input id="edLat" type="number" step="0.000001" />
-          </label>
-          <label class="field">
-            <span>Lng</span>
-            <input id="edLng" type="number" step="0.000001" />
-          </label>
+          <div class="split">
+            <div>
+              <label>Lat</label>
+              <input id="edLat2" />
+            </div>
+            <div>
+              <label>Lng</label>
+              <input id="edLng2" />
+            </div>
+          </div>
         </div>
 
-        <div id="edRatingWrap" class="hidden" style="margin-top:10px">
-          <label class="field">
-            <span>Rating (1-5)</span>
-            <input id="edRating" type="number" min="1" max="5" step="1" />
-          </label>
+        <div class="hr"></div>
+
+        <div class="row">
+          <button class="btn ok" id="btnSaveItem">Salva (in memoria)</button>
+          <button class="btn acc" id="btnPublish">Pubblica</button>
+          <span class="status" id="edStatus"></span>
         </div>
 
-        <div class="row" style="margin-top:10px">
-          <button id="btnPickOnMap" class="btn secondary" type="button">📍 Seleziona su mappa</button>
-          <button id="btnSaveItem" class="btn" type="button">💾 Salva</button>
-          <button id="btnDeleteItem" class="btn danger" type="button">Elimina</button>
-        </div>
-
-        <p id="edStatus" class="muted mini" style="margin-top:8px"></p>
-
-        <hr style="border-color:var(--border); margin:14px 0;">
-        <h3 style="margin:0 0 10px">Mappa</h3>
-        <div id="mapEd" class="map"></div>
-
-        <div class="row" style="margin-top:10px">
-          <label class="field" style="flex:1">
-            <span>GitHub Token (Contents: Read/Write)</span>
-            <input id="ghToken" type="password" placeholder="ghp_... / github_pat_..." />
-          </label>
-          <label class="field" style="flex:1">
-            <span>Repo (owner/repo)</span>
-            <input id="ghRepo" type="text" placeholder="vocidicassinoprotonme-hash/cassino-hub" />
-          </label>
-        </div>
-
-        <div class="row" style="margin-top:10px">
-          <button id="btnLoadContent" class="btn secondary" type="button">Carica da API (D1)</button>
-          <button id="btnPublish" class="btn" type="button">🚀 Pubblica (disattivato)</button>
-          <span id="ghStatus" class="muted mini"></span>
-        </div>
+        <div class="hr"></div>
+        <div class="map" id="mapEditor"></div>
       </div>
     </div>
 
   </div>
+</main>
 
-  <script src="./admin.js"></script>
+<script src="./admin.js"></script>
 </body>
 </html>
