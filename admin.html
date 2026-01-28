@@ -11,290 +11,289 @@
 
   <style>
     :root{
-      --bg:#070b12; --panel:#0b1220; --card:#0f1b33;
-      --text:#e8eefc; --muted:#a7b2cc;
-      --line:rgba(255,255,255,.08);
-      --accent:#3b82f6; --ok:#22c55e; --warn:#f59e0b; --bad:#ef4444;
-      --chip:#111f3f;
+      --bg:#070b12; --panel:#0e1624; --panel2:#0b1220;
+      --text:#e9eefb; --muted:#a8b3cf;
+      --acc:#2b71ff; --bad:#ff4d4d; --ok:#2ad27a; --warn:#ffb020;
+      --border: rgba(255,255,255,.08);
+      --shadow: 0 10px 30px rgba(0,0,0,.35);
+      --radius: 18px;
+      --radius2: 14px;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --sans: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
     }
     *{box-sizing:border-box}
     body{
-      margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;
-      background: radial-gradient(900px 500px at 15% -10%, rgba(59,130,246,.35), transparent 65%),
-                  radial-gradient(1000px 700px at 110% 0%, rgba(34,197,94,.16), transparent 60%),
-                  linear-gradient(180deg, #050810, #050810 60%, #040610);
+      margin:0; font-family:var(--sans);
+      background: radial-gradient(1200px 600px at 20% -10%, rgba(43,113,255,.18), transparent 50%),
+                  radial-gradient(900px 500px at 90% 0%, rgba(42,210,122,.10), transparent 50%),
+                  linear-gradient(180deg, #050812, #060a12 40%, #050812);
       color:var(--text);
+      min-height:100vh;
     }
-    a{color:var(--accent); text-decoration:none}
-    .wrap{max-width:1200px; margin:0 auto; padding:18px;}
-    .top{
+    header{
+      padding:18px 18px 0;
+      position:sticky; top:0; z-index:20;
+      background: linear-gradient(180deg, rgba(7,11,18,.92), rgba(7,11,18,.68) 60%, rgba(7,11,18,0));
+      backdrop-filter: blur(10px);
+    }
+    .topbar{
       display:flex; align-items:center; justify-content:space-between; gap:12px;
-      padding:14px 16px; border:1px solid var(--line); border-radius:16px;
-      background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
-      box-shadow:0 10px 30px rgba(0,0,0,.35);
+      max-width:1100px; margin:0 auto;
     }
-    .brand{display:flex; align-items:center; gap:12px;}
+    .brand{
+      display:flex; align-items:center; gap:12px;
+    }
     .logo{
-      width:44px; height:44px; border-radius:14px; display:grid; place-items:center;
-      background:linear-gradient(135deg, rgba(59,130,246,.9), rgba(59,130,246,.45));
-      border:1px solid rgba(255,255,255,.18);
-      box-shadow:0 8px 22px rgba(59,130,246,.25);
+      width:44px; height:44px; border-radius:14px;
+      background: linear-gradient(135deg, rgba(43,113,255,.95), rgba(42,210,122,.65));
+      display:grid; place-items:center; box-shadow: var(--shadow);
       font-weight:800;
     }
-    .brand h1{margin:0; font-size:16px; letter-spacing:.2px}
-    .brand small{display:block; color:var(--muted); margin-top:2px}
-    .pill{
-      display:flex; align-items:center; gap:8px; flex-wrap:wrap;
-      color:var(--muted);
-      font-size:12px;
+    .brand h1{
+      margin:0; font-size:18px; line-height:1.1;
     }
-    .chip{
-      display:inline-flex; align-items:center; gap:6px;
-      padding:6px 10px; border-radius:999px; border:1px solid var(--line);
-      background:rgba(255,255,255,.03);
+    .brand p{
+      margin:0; font-size:13px; color:var(--muted);
     }
-    .dot{width:8px; height:8px; border-radius:50%}
-    .dot.ok{background:var(--ok)}
-    .dot.bad{background:var(--bad)}
-    .dot.warn{background:var(--warn)}
-
-    .grid{display:grid; grid-template-columns: 360px 1fr; gap:16px; margin-top:16px;}
-    @media (max-width: 980px){ .grid{grid-template-columns:1fr;} }
-
-    .panel{
-      border:1px solid var(--line);
-      border-radius:16px;
-      background:linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
+    .wrap{ max-width:1100px; margin:0 auto; padding:18px; }
+    .grid{
+      display:grid; gap:14px;
+      grid-template-columns: 360px 1fr;
+    }
+    @media (max-width: 980px){
+      .grid{ grid-template-columns: 1fr; }
+    }
+    .card{
+      background: linear-gradient(180deg, rgba(14,22,36,.92), rgba(11,18,32,.92));
+      border:1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
       overflow:hidden;
-      box-shadow:0 10px 30px rgba(0,0,0,.25);
     }
-    .panel .hd{
-      padding:12px 14px;
-      border-bottom:1px solid var(--line);
+    .card .hd{
+      padding:14px 14px 10px;
+      border-bottom:1px solid var(--border);
       display:flex; align-items:center; justify-content:space-between; gap:10px;
-      background:rgba(0,0,0,.12);
     }
-    .panel .hd h2{margin:0; font-size:13px; letter-spacing:.3px; text-transform:uppercase; color:#dbe7ff;}
-    .panel .bd{padding:14px;}
-    label{display:block; font-size:12px; color:var(--muted); margin:10px 0 6px;}
-    input, select, textarea{
-      width:100%; padding:10px 10px; border-radius:12px;
-      border:1px solid rgba(255,255,255,.10);
-      background:rgba(5,10,20,.65);
-      color:var(--text);
+    .card .hd h2{ margin:0; font-size:14px; letter-spacing:.3px; color:#dfe7ff; }
+    .card .bd{ padding:14px; }
+    .row{ display:grid; gap:10px; }
+    label{ font-size:12px; color:var(--muted); }
+    input, textarea, select{
+      width:100%;
+      padding:12px 12px;
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.20);
+      color: var(--text);
       outline:none;
     }
-    textarea{min-height:92px; resize:vertical}
-    .row{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
-    .btns{display:flex; gap:10px; flex-wrap:wrap; margin-top:12px;}
-    .btn{
-      padding:10px 12px; border-radius:12px; border:1px solid rgba(255,255,255,.12);
-      background:rgba(255,255,255,.05);
-      color:var(--text);
+    textarea{ min-height: 92px; resize: vertical; }
+    .btns{ display:flex; gap:10px; flex-wrap:wrap; margin-top:8px; }
+    button{
+      border:0;
+      padding:12px 14px;
+      border-radius: 14px;
+      background: rgba(255,255,255,.08);
+      color: var(--text);
       cursor:pointer;
-      font-weight:700;
-      font-size:12px;
+      font-weight:650;
     }
-    .btn:hover{background:rgba(255,255,255,.08)}
-    .btn-primary{
-      background:linear-gradient(135deg, rgba(59,130,246,.95), rgba(59,130,246,.55));
-      border-color:rgba(59,130,246,.45);
-      box-shadow:0 10px 24px rgba(59,130,246,.18);
+    button.primary{ background: linear-gradient(135deg, rgba(43,113,255,.98), rgba(43,113,255,.70)); }
+    button.good{ background: linear-gradient(135deg, rgba(42,210,122,.95), rgba(42,210,122,.70)); }
+    button.warn{ background: linear-gradient(135deg, rgba(255,176,32,.92), rgba(255,176,32,.65)); color:#0b0f16; }
+    button:disabled{ opacity:.55; cursor:not-allowed; }
+
+    .tabs{ display:flex; gap:10px; flex-wrap:wrap; }
+    .tab{
+      padding:10px 12px;
+      border-radius: 999px;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.18);
+      color: var(--text);
+      font-size: 13px;
     }
-    .btn-danger{
-      background:linear-gradient(135deg, rgba(239,68,68,.95), rgba(239,68,68,.55));
-      border-color:rgba(239,68,68,.45);
-      box-shadow:0 10px 24px rgba(239,68,68,.12);
+    .tab.active{ background: rgba(43,113,255,.22); border-color: rgba(43,113,255,.35); }
+    .pill{
+      font-family: var(--mono);
+      font-size: 12px;
+      color: #cfe0ff;
+      background: rgba(43,113,255,.18);
+      border:1px solid rgba(43,113,255,.30);
+      padding:6px 10px;
+      border-radius: 999px;
+    }
+    .status{
+      margin-top:10px;
+      font-size:13px;
+      color: var(--muted);
+      display:flex; flex-direction:column; gap:6px;
+    }
+    .status .line{ display:flex; align-items:center; gap:8px; }
+    .dot{ width:9px; height:9px; border-radius:99px; background: rgba(255,255,255,.25); }
+    .dot.ok{ background: var(--ok); }
+    .dot.bad{ background: var(--bad); }
+    .dot.warn{ background: var(--warn); }
+
+    .list{
+      display:grid; gap:10px;
+    }
+    .item{
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.18);
+      border-radius: var(--radius2);
+      padding:12px;
+    }
+    .item .t{
+      display:flex; justify-content:space-between; gap:10px; align-items:flex-start;
+    }
+    .item h3{ margin:0; font-size:14px; }
+    .item small{ color:var(--muted); font-family:var(--mono); }
+    .item p{ margin:8px 0 0; color:#cfd7ef; font-size:13px; white-space:pre-wrap; }
+
+    .split{
+      display:grid; grid-template-columns: 1fr 1fr; gap:10px;
+    }
+    @media (max-width: 640px){ .split{ grid-template-columns:1fr; } }
+
+    #map{
+      height: 280px;
+      border-radius: var(--radius2);
+      border: 1px solid rgba(255,255,255,.10);
+      overflow:hidden;
     }
 
-    .tabs{
-      display:flex; gap:8px; flex-wrap:wrap;
-      padding:10px 10px 0;
-    }
-    .tab{
-      border:1px solid var(--line);
-      background:rgba(255,255,255,.03);
-      color:var(--muted);
-      padding:8px 10px;
-      border-radius:999px;
-      cursor:pointer;
+    .footerNote{
+      margin-top:10px;
+      color: var(--muted);
       font-size:12px;
-      font-weight:700;
+      line-height:1.4;
     }
-    .tab.active{
-      color:var(--text);
-      background:rgba(59,130,246,.20);
-      border-color:rgba(59,130,246,.35);
-    }
-    .view{display:none}
-    .view.active{display:block}
-    .cards{display:grid; grid-template-columns:1fr; gap:10px; margin-top:10px;}
-    .card{
-      border:1px solid var(--line);
-      border-radius:14px;
-      padding:12px;
-      background:rgba(255,255,255,.03);
-    }
-    .card h3{margin:0 0 6px; font-size:14px}
-    .meta{display:flex; gap:8px; flex-wrap:wrap; color:var(--muted); font-size:12px; margin-top:6px}
-    .tag{
-      display:inline-flex; align-items:center; gap:6px;
-      padding:5px 8px; border-radius:999px;
-      background:rgba(255,255,255,.04); border:1px solid var(--line);
-    }
-    .tag b{color:var(--text); font-weight:800}
-    .small{font-size:12px; color:var(--muted)}
-    .split{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px;}
-    @media (max-width: 900px){ .split{grid-template-columns:1fr;} }
-    #map{height:340px; border-radius:14px; border:1px solid var(--line); overflow:hidden}
-    .hr{height:1px; background:var(--line); margin:12px 0;}
     .kbd{
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-      font-size:12px; color:#cfe0ff;
-      background:rgba(0,0,0,.25); border:1px solid var(--line);
-      padding:6px 8px; border-radius:10px;
+      font-family: var(--mono);
+      padding: 2px 6px;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,.12);
+      background: rgba(0,0,0,.22);
+      color: #dfe7ff;
     }
   </style>
 </head>
 
 <body>
-  <div class="wrap">
-    <div class="top">
-      <div class="brand">
-        <div class="logo">CH</div>
-        <div>
-          <h1>Admin • Cassino Hub</h1>
-          <small>Gestione segnalazioni + dataset (places/reviews) GitHub</small>
-        </div>
-      </div>
-
-      <div class="pill">
-        <span class="chip"><span class="dot warn" id="dotApi"></span> API</span>
-        <span class="chip"><span class="dot warn" id="dotGh"></span> GitHub</span>
-        <span class="chip">Stato: <span id="statusText">in attesa</span></span>
+<header>
+  <div class="topbar">
+    <div class="brand">
+      <div class="logo">CH</div>
+      <div>
+        <h1>Cassino Hub</h1>
+        <p>Admin • Moderazione • Places/Reviews • Pubblicazione GitHub</p>
       </div>
     </div>
+    <div class="pill" id="envPill">Impostazioni</div>
+  </div>
+</header>
 
-    <div class="grid">
-      <!-- SETTINGS -->
-      <div class="panel">
-        <div class="hd">
-          <h2>Impostazioni</h2>
-          <span class="small">Salvate in locale</span>
-        </div>
-        <div class="bd">
-          <label>API Base (Cloudflare Worker)</label>
-          <input id="apiBase" placeholder="https://....workers.dev" />
+<div class="wrap">
+  <div class="grid">
 
-          <label>Admin Key (Worker)</label>
-          <input id="adminKey" placeholder="Marco-Admin-..." />
-
-          <div class="hr"></div>
-
-          <label>GitHub Token (solo per pubblicare)</label>
-          <input id="ghToken" placeholder="ghp_..." />
-
-          <label>Repo (owner/repo)</label>
-          <input id="ghRepo" placeholder="vocidicassinoprotonme-hash/cassino-hub" />
-
-          <label>Branch</label>
-          <input id="ghBranch" placeholder="main" />
-
-          <div class="btns">
-            <button id="btnSaveSettings" class="btn btn-primary">Salva</button>
-            <button id="btnTestApi" class="btn">Test API</button>
-            <button id="btnTestGh" class="btn">Test GitHub</button>
+    <!-- SETTINGS -->
+    <section class="card">
+      <div class="hd">
+        <h2>IMPOSTAZIONI</h2>
+        <span class="pill" id="saveHint">Salvate in locale</span>
+      </div>
+      <div class="bd">
+        <div class="row">
+          <div>
+            <label>API Base (Cloudflare Worker)</label>
+            <input id="apiBase" placeholder="https://...workers.dev" />
+          </div>
+          <div>
+            <label>Admin Key (Worker)</label>
+            <input id="adminKey" placeholder="Marco-Admin-..." />
           </div>
 
-          <div class="hr"></div>
+          <hr style="border:0;border-top:1px solid var(--border);margin:8px 0" />
 
-          <div class="btns">
-            <button id="btnLoadReports" class="btn">Carica Segnalazioni (API)</button>
-            <button id="btnLoadContent" class="btn">Carica Places/Reviews da GitHub</button>
-            <button id="btnPublishGithub" class="btn btn-primary">Pubblica su GitHub</button>
+          <div>
+            <label>GitHub Token (solo per pubblicare)</label>
+            <input id="ghToken" placeholder="ghp_..." />
+          </div>
+          <div class="split">
+            <div>
+              <label>Repo (owner/repo)</label>
+              <input id="ghRepo" placeholder="vocidicassinoprotonme-hash/cassino-hub" />
+            </div>
+            <div>
+              <label>Branch</label>
+              <input id="ghBranch" placeholder="main" />
+            </div>
           </div>
 
-          <div class="hr"></div>
-          <div class="small">
+          <div class="btns">
+            <button class="primary" id="btnSave">Salva</button>
+            <button id="btnTestApi">Test API</button>
+            <button id="btnTestGh">Test GitHub</button>
+          </div>
+
+          <div class="btns" style="margin-top:4px">
+            <button id="btnLoadReports">Carica Segnalazioni (API)</button>
+            <button id="btnLoadGhData">Carica Places/Reviews da GitHub</button>
+            <button class="good" id="btnPublish">Pubblica su GitHub</button>
+          </div>
+
+          <div class="footerNote">
             Tip: i dataset pubblici stanno in <span class="kbd">data/places.json</span> e <span class="kbd">data/reviews.json</span> nel repo.
+            Se <b>Test API</b> fa 401, quasi sempre è chiave errata o Worker che richiede header specifico.
           </div>
-          <div class="small" id="apiStatus" style="margin-top:10px;"></div>
-          <div class="small" id="ghStatus" style="margin-top:8px;"></div>
+
+          <div class="status" id="statusBox">
+            <div class="line"><span class="dot"></span><span>Pronto.</span></div>
+          </div>
         </div>
       </div>
+    </section>
 
-      <!-- CONTENT -->
-      <div class="panel">
-        <div class="hd">
-          <h2>Contenuti</h2>
-          <span class="small">Gestisci e verifica</span>
-        </div>
-
+    <!-- MAIN -->
+    <section class="card">
+      <div class="hd">
+        <h2>GESTIONE</h2>
         <div class="tabs">
-          <button class="tab active" data-view="reports">Segnalazioni</button>
-          <button class="tab" data-view="places">Places</button>
+          <button class="tab active" data-view="places">Places</button>
           <button class="tab" data-view="reviews">Reviews</button>
           <button class="tab" data-view="map">Mappa</button>
         </div>
-
-        <div class="bd">
-          <!-- REPORTS -->
-          <div class="view active" id="view-reports">
-            <div class="row">
-              <div>
-                <label>Filtro stato</label>
-                <select id="reportStatus">
-                  <option value="all">Tutte</option>
-                  <option value="pending">Pending</option>
-                  <option value="approved">Approved</option>
-                  <option value="rejected">Rejected</option>
-                </select>
-              </div>
-              <div>
-                <label>Limite</label>
-                <input id="reportLimit" type="number" value="100" />
-              </div>
-            </div>
-
-            <div class="btns">
-              <button id="btnRefreshReports" class="btn btn-primary">Aggiorna lista</button>
-            </div>
-
-            <div class="cards" id="reportList"></div>
-          </div>
-
-          <!-- PLACES -->
-          <div class="view" id="view-places">
-            <div class="small">Fonte: <span class="kbd">data/places.json</span> (GitHub)</div>
-            <div class="cards" id="placesList"></div>
-          </div>
-
-          <!-- REVIEWS -->
-          <div class="view" id="view-reviews">
-            <div class="small">Fonte: <span class="kbd">data/reviews.json</span> (GitHub)</div>
-            <div class="cards" id="reviewsList"></div>
-          </div>
-
-          <!-- MAP -->
-          <div class="view" id="view-map">
-            <div class="split">
-              <div>
-                <div class="small">Pin da Places + Segnalazioni (se hanno coordinate)</div>
-                <div id="map"></div>
-              </div>
-              <div>
-                <div class="small">Legenda</div>
-                <div class="cards" id="mapLegend"></div>
-              </div>
-            </div>
-          </div>
-
-        </div>
       </div>
 
-    </div>
-  </div>
+      <div class="bd">
+        <div id="view_places">
+          <div class="btns" style="margin-bottom:10px">
+            <button class="warn" id="btnLoadPlacesPending">Carica pending (API)</button>
+            <button id="btnLoadPlacesAll">Carica tutti (API)</button>
+          </div>
+          <div class="list" id="placesList"></div>
+        </div>
 
-  <script src="./admin.js"></script>
+        <div id="view_reviews" style="display:none">
+          <div class="btns" style="margin-bottom:10px">
+            <button class="warn" id="btnLoadReviewsPending">Carica pending (API)</button>
+            <button id="btnLoadReviewsAll">Carica tutti (API)</button>
+          </div>
+          <div class="list" id="reviewsList"></div>
+        </div>
+
+        <div id="view_map" style="display:none">
+          <div id="map"></div>
+          <div class="footerNote" id="mapNote" style="margin-top:8px"></div>
+        </div>
+
+      </div>
+    </section>
+
+  </div>
+</div>
+
+<script src="./admin.js"></script>
 </body>
 </html>
