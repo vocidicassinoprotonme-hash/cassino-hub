@@ -3,66 +3,298 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Admin Segnalazioni</title>
-  <link rel="stylesheet" href="style.css" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <title>Admin • Cassino Hub</title>
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+
   <style>
-    .wrap{max-width:1100px;margin:0 auto;padding:18px}
-    .top{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between}
-    .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px}
-    .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-    @media (max-width:900px){ .row{grid-template-columns:1fr} }
-    #mapAdmin{height:420px;border-radius:16px;border:1px solid var(--line)}
-    .item{padding:12px;border-radius:16px;border:1px solid var(--line);background:var(--card);margin:10px 0}
-    .badges{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
-    .badge{font-size:12px;padding:4px 10px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.04)}
-    .grid{display:grid;grid-template-columns:1fr 160px;gap:12px;align-items:start}
-    @media (max-width:700px){ .grid{grid-template-columns:1fr} }
-    img.thumb{width:100%;border-radius:14px;border:1px solid var(--line)}
-    input,select{width:100%}
+    :root{
+      --bg:#070b12; --panel:#0b1220; --card:#0f1b33;
+      --text:#e8eefc; --muted:#a7b2cc;
+      --line:rgba(255,255,255,.08);
+      --accent:#3b82f6; --ok:#22c55e; --warn:#f59e0b; --bad:#ef4444;
+      --chip:#111f3f;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;
+      background: radial-gradient(900px 500px at 15% -10%, rgba(59,130,246,.35), transparent 65%),
+                  radial-gradient(1000px 700px at 110% 0%, rgba(34,197,94,.16), transparent 60%),
+                  linear-gradient(180deg, #050810, #050810 60%, #040610);
+      color:var(--text);
+    }
+    a{color:var(--accent); text-decoration:none}
+    .wrap{max-width:1200px; margin:0 auto; padding:18px;}
+    .top{
+      display:flex; align-items:center; justify-content:space-between; gap:12px;
+      padding:14px 16px; border:1px solid var(--line); border-radius:16px;
+      background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+      box-shadow:0 10px 30px rgba(0,0,0,.35);
+    }
+    .brand{display:flex; align-items:center; gap:12px;}
+    .logo{
+      width:44px; height:44px; border-radius:14px; display:grid; place-items:center;
+      background:linear-gradient(135deg, rgba(59,130,246,.9), rgba(59,130,246,.45));
+      border:1px solid rgba(255,255,255,.18);
+      box-shadow:0 8px 22px rgba(59,130,246,.25);
+      font-weight:800;
+    }
+    .brand h1{margin:0; font-size:16px; letter-spacing:.2px}
+    .brand small{display:block; color:var(--muted); margin-top:2px}
+    .pill{
+      display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+      color:var(--muted);
+      font-size:12px;
+    }
+    .chip{
+      display:inline-flex; align-items:center; gap:6px;
+      padding:6px 10px; border-radius:999px; border:1px solid var(--line);
+      background:rgba(255,255,255,.03);
+    }
+    .dot{width:8px; height:8px; border-radius:50%}
+    .dot.ok{background:var(--ok)}
+    .dot.bad{background:var(--bad)}
+    .dot.warn{background:var(--warn)}
+
+    .grid{display:grid; grid-template-columns: 360px 1fr; gap:16px; margin-top:16px;}
+    @media (max-width: 980px){ .grid{grid-template-columns:1fr;} }
+
+    .panel{
+      border:1px solid var(--line);
+      border-radius:16px;
+      background:linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
+      overflow:hidden;
+      box-shadow:0 10px 30px rgba(0,0,0,.25);
+    }
+    .panel .hd{
+      padding:12px 14px;
+      border-bottom:1px solid var(--line);
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+      background:rgba(0,0,0,.12);
+    }
+    .panel .hd h2{margin:0; font-size:13px; letter-spacing:.3px; text-transform:uppercase; color:#dbe7ff;}
+    .panel .bd{padding:14px;}
+    label{display:block; font-size:12px; color:var(--muted); margin:10px 0 6px;}
+    input, select, textarea{
+      width:100%; padding:10px 10px; border-radius:12px;
+      border:1px solid rgba(255,255,255,.10);
+      background:rgba(5,10,20,.65);
+      color:var(--text);
+      outline:none;
+    }
+    textarea{min-height:92px; resize:vertical}
+    .row{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+    .btns{display:flex; gap:10px; flex-wrap:wrap; margin-top:12px;}
+    .btn{
+      padding:10px 12px; border-radius:12px; border:1px solid rgba(255,255,255,.12);
+      background:rgba(255,255,255,.05);
+      color:var(--text);
+      cursor:pointer;
+      font-weight:700;
+      font-size:12px;
+    }
+    .btn:hover{background:rgba(255,255,255,.08)}
+    .btn-primary{
+      background:linear-gradient(135deg, rgba(59,130,246,.95), rgba(59,130,246,.55));
+      border-color:rgba(59,130,246,.45);
+      box-shadow:0 10px 24px rgba(59,130,246,.18);
+    }
+    .btn-danger{
+      background:linear-gradient(135deg, rgba(239,68,68,.95), rgba(239,68,68,.55));
+      border-color:rgba(239,68,68,.45);
+      box-shadow:0 10px 24px rgba(239,68,68,.12);
+    }
+
+    .tabs{
+      display:flex; gap:8px; flex-wrap:wrap;
+      padding:10px 10px 0;
+    }
+    .tab{
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.03);
+      color:var(--muted);
+      padding:8px 10px;
+      border-radius:999px;
+      cursor:pointer;
+      font-size:12px;
+      font-weight:700;
+    }
+    .tab.active{
+      color:var(--text);
+      background:rgba(59,130,246,.20);
+      border-color:rgba(59,130,246,.35);
+    }
+    .view{display:none}
+    .view.active{display:block}
+    .cards{display:grid; grid-template-columns:1fr; gap:10px; margin-top:10px;}
+    .card{
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:12px;
+      background:rgba(255,255,255,.03);
+    }
+    .card h3{margin:0 0 6px; font-size:14px}
+    .meta{display:flex; gap:8px; flex-wrap:wrap; color:var(--muted); font-size:12px; margin-top:6px}
+    .tag{
+      display:inline-flex; align-items:center; gap:6px;
+      padding:5px 8px; border-radius:999px;
+      background:rgba(255,255,255,.04); border:1px solid var(--line);
+    }
+    .tag b{color:var(--text); font-weight:800}
+    .small{font-size:12px; color:var(--muted)}
+    .split{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px;}
+    @media (max-width: 900px){ .split{grid-template-columns:1fr;} }
+    #map{height:340px; border-radius:14px; border:1px solid var(--line); overflow:hidden}
+    .hr{height:1px; background:var(--line); margin:12px 0;}
+    .kbd{
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size:12px; color:#cfe0ff;
+      background:rgba(0,0,0,.25); border:1px solid var(--line);
+      padding:6px 8px; border-radius:10px;
+    }
   </style>
 </head>
+
 <body>
   <div class="wrap">
     <div class="top">
-      <h2>🔒 Admin Segnalazioni</h2>
-      <div style="display:flex;gap:10px;align-items:center">
-        <button id="btnReload" class="btn">🔄 Aggiorna</button>
-        <button id="btnDownload" class="btn">⬇️ Esporta JSON</button>
-        <button id="btnLogout" class="btn">🚪 Esci</button>
-      </div>
-    </div>
-
-    <div class="row">
-      <div class="card">
-        <label class="muted small">Endpoint /list del Worker</label>
-        <input id="endpoint" />
-        <div style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:10px">
-          <div>
-            <label class="muted small">Filtro testo</label>
-            <input id="q" placeholder="cerca titolo o descrizione" />
-          </div>
-          <div>
-            <label class="muted small">Mostra</label>
-            <select id="limit">
-              <option value="20">20</option>
-              <option value="50" selected>50</option>
-              <option value="100">100</option>
-            </select>
-          </div>
+      <div class="brand">
+        <div class="logo">CH</div>
+        <div>
+          <h1>Admin • Cassino Hub</h1>
+          <small>Gestione segnalazioni + dataset (places/reviews) GitHub</small>
         </div>
-        <div class="muted small" id="status" style="margin-top:10px"></div>
       </div>
 
-      <div class="card">
-        <div id="mapAdmin"></div>
+      <div class="pill">
+        <span class="chip"><span class="dot warn" id="dotApi"></span> API</span>
+        <span class="chip"><span class="dot warn" id="dotGh"></span> GitHub</span>
+        <span class="chip">Stato: <span id="statusText">in attesa</span></span>
       </div>
     </div>
 
-    <div id="list"></div>
+    <div class="grid">
+      <!-- SETTINGS -->
+      <div class="panel">
+        <div class="hd">
+          <h2>Impostazioni</h2>
+          <span class="small">Salvate in locale</span>
+        </div>
+        <div class="bd">
+          <label>API Base (Cloudflare Worker)</label>
+          <input id="apiBase" placeholder="https://....workers.dev" />
+
+          <label>Admin Key (Worker)</label>
+          <input id="adminKey" placeholder="Marco-Admin-..." />
+
+          <div class="hr"></div>
+
+          <label>GitHub Token (solo per pubblicare)</label>
+          <input id="ghToken" placeholder="ghp_..." />
+
+          <label>Repo (owner/repo)</label>
+          <input id="ghRepo" placeholder="vocidicassinoprotonme-hash/cassino-hub" />
+
+          <label>Branch</label>
+          <input id="ghBranch" placeholder="main" />
+
+          <div class="btns">
+            <button id="btnSaveSettings" class="btn btn-primary">Salva</button>
+            <button id="btnTestApi" class="btn">Test API</button>
+            <button id="btnTestGh" class="btn">Test GitHub</button>
+          </div>
+
+          <div class="hr"></div>
+
+          <div class="btns">
+            <button id="btnLoadReports" class="btn">Carica Segnalazioni (API)</button>
+            <button id="btnLoadContent" class="btn">Carica Places/Reviews da GitHub</button>
+            <button id="btnPublishGithub" class="btn btn-primary">Pubblica su GitHub</button>
+          </div>
+
+          <div class="hr"></div>
+          <div class="small">
+            Tip: i dataset pubblici stanno in <span class="kbd">data/places.json</span> e <span class="kbd">data/reviews.json</span> nel repo.
+          </div>
+          <div class="small" id="apiStatus" style="margin-top:10px;"></div>
+          <div class="small" id="ghStatus" style="margin-top:8px;"></div>
+        </div>
+      </div>
+
+      <!-- CONTENT -->
+      <div class="panel">
+        <div class="hd">
+          <h2>Contenuti</h2>
+          <span class="small">Gestisci e verifica</span>
+        </div>
+
+        <div class="tabs">
+          <button class="tab active" data-view="reports">Segnalazioni</button>
+          <button class="tab" data-view="places">Places</button>
+          <button class="tab" data-view="reviews">Reviews</button>
+          <button class="tab" data-view="map">Mappa</button>
+        </div>
+
+        <div class="bd">
+          <!-- REPORTS -->
+          <div class="view active" id="view-reports">
+            <div class="row">
+              <div>
+                <label>Filtro stato</label>
+                <select id="reportStatus">
+                  <option value="all">Tutte</option>
+                  <option value="pending">Pending</option>
+                  <option value="approved">Approved</option>
+                  <option value="rejected">Rejected</option>
+                </select>
+              </div>
+              <div>
+                <label>Limite</label>
+                <input id="reportLimit" type="number" value="100" />
+              </div>
+            </div>
+
+            <div class="btns">
+              <button id="btnRefreshReports" class="btn btn-primary">Aggiorna lista</button>
+            </div>
+
+            <div class="cards" id="reportList"></div>
+          </div>
+
+          <!-- PLACES -->
+          <div class="view" id="view-places">
+            <div class="small">Fonte: <span class="kbd">data/places.json</span> (GitHub)</div>
+            <div class="cards" id="placesList"></div>
+          </div>
+
+          <!-- REVIEWS -->
+          <div class="view" id="view-reviews">
+            <div class="small">Fonte: <span class="kbd">data/reviews.json</span> (GitHub)</div>
+            <div class="cards" id="reviewsList"></div>
+          </div>
+
+          <!-- MAP -->
+          <div class="view" id="view-map">
+            <div class="split">
+              <div>
+                <div class="small">Pin da Places + Segnalazioni (se hanno coordinate)</div>
+                <div id="map"></div>
+              </div>
+              <div>
+                <div class="small">Legenda</div>
+                <div class="cards" id="mapLegend"></div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
   </div>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="admin.js"></script>
+  <script src="./admin.js"></script>
 </body>
 </html>
